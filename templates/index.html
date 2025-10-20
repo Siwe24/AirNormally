@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirNormally - Secure Flight Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0"></script>
+    <link rel="stylesheet" href="static\style.css">
+ 
+</head>
+<body>
+    <!-- Log in form section. before getting to real index -->
+    <div id="FormLoginSection" class="login-container">
+        <h2 style="text-align: center;">Welcome to AirNormally</h2>
+        <form id="loginForm">
+            <div style="margin-bottom: 15px;">
+                <label>Username:</label>
+                <input type="text" id="username" name="username" required style="width: 90%; padding: 8px; margin: 5px 0;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Password:</label>
+                <input type="password" id="password" name="password" required style="width: 90%; padding: 8px; margin: 5px 0;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Role:</label>
+                <select id="userRole" name="userRole" required style="width: 85%; padding: 8px; margin: 5px 0;">
+                    <option value="public">Public User</option>
+                    <option value="operator">Operator</option>
+                    <option value="analyst">Analyst</option>
+                </select>
+            </div>
+            <button type="submit"  style="background-color: blue; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+                Login
+            </button>
+        </form>
+    </div>
+
+  <!-- Actual Analysis incl current user and lot out sec -->
+    <div id="mainApp" class="hidden">
+        <div class="user-info">
+            Logged in as: <strong id="currentUser">User</strong> 
+            Role: <span id="currentRole">Role</span>
+            <button onclick="logout()" style="float: right; background: blue; color: white; border: none; padding: 5px 5px; cursor: pointer;">
+                Logout
+            </button>
+        </div>
+
+        <div class="container" style="border-radius: 10px; padding: 25px;">
+            <h1 style="text-align: center;">AirNormally</h1>
+            <p style="text-align: center; font-style: italic;">Comprehensive real-time flight analysis and report generation</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <div class="form-section" style="border-radius: 10px; padding: 25px; border-width: 1px;  border-style: solid; border-color: black;">
+                    <h2>Single Flight Analysis</h2> 
+                    <form id="flightAnalysisForm">
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div>
+                                <h3>Aircraft Information</h3>
+                                <select name="acft_make">
+                                    <option value="AIRBUS">AIRBUS</option>
+                                    <option value="BEECH">BEECH</option>                                    
+                                    <option value="BOEING">BOEING</option>
+                                    <option value="BOMBARDIER">BOMBARDIER</option>
+                                    <option value="BOMBARDIER INC">BOMBARDIER INC</option>  
+                                    <option value="CIRRUS">CIRRUS</option> 
+                                    <option value="DEHAVILLAND">DEHAVILLAND</option>
+                                    <option value="DE HAVILLAND">DE HAVILLAND</option>                                                                              
+                                    <option value="EMBRAER">EMBRAER</option>
+                                    <option value="MCDONNELL DOUGLAS">MCDONNELL DOUGLAS</option>
+                                    <option value="PIPER">PIPER</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <input type="number" name="cert_max_gr_wt" placeholder="Max Gross Weight">
+                                <input type="number" name="num_eng" placeholder="Number of Engines">
+                            </div>
+                            
+                            <div>
+                                <h3>Weather Conditions</h3>
+                                <input type="number" name="wind_vel_kts" placeholder="Wind Speed (knots)">
+                                <input type="number" name="vis_sm" placeholder="Visibility (miles)">
+                                <select name="wx_cond_basic">
+                                    <option value="VMC">Visual Meteorological Conditions</option>
+                                    <option value="IMC">Instrument Meteorological Conditions</option>
+                                    <option value="MVMC">Marginal VMC</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <h3>Speed & Flight Phase</h3>
+                                <input type="number" name="knots" placeholder="Aircraft Speed (knots)">
+                                <select name="ev_nr_apt_loc">
+                                    <option value="OFAP">Off Airport (In-Flight)</option>
+                                    <option value="ONAP">On Airport (Ground)</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <h3>Pilot Information</h3>
+                                <input type="number" name="flight_hours" placeholder="Pilot Flight Hours">
+                                <input type="number" name="crew_age" placeholder="Pilot Age">
+                            </div>
+                            
+                            <div>
+                                <h3>Maintenance & Operations</h3>
+                                <input type="number" name="afm_hrs_since" placeholder="Hours Since Inspection">
+                            </div>
+                            
+                            <div>
+                                <h3>Security & Communications</h3>
+                                <select name="flt_plan_filed">
+                                    <option value="YES">Flight Plan Filed</option>
+                                    <option value="NO">No Flight Plan</option>
+                                </select>
+                                <select name="acft_expl">
+                                    <option value="NO">No Explosion</option>
+                                    <option value="YES">Explosion</option>
+                                </select>
+                                <select name="acft_fire">
+                                    <option value="NO">No Fire</option>
+                                    <option value="YES">Fire</option>
+                                </select>
+
+                                <select name="acars_sys">
+                                    <option value="Normal">Normal ACARS Operation</option>
+                                    <option value="Slow">Slow ACARS Operation</option>
+                                    <option value="Failed">Failed ACARS Operation</option>
+                                </select>
+                                <select name="cpdlc_sys">
+                                    <option value="Normal">Normal CPDLC Operation</option>
+                                    <option value="Slow">Slow CPLDC Operation</option>
+                                    <option value="Failed">Failed CPDLC Operation</option>
+                                </select>
+                            </div>
+                        </div>                
+                        <button type="submit" style="margin-top: 10px; padding: 10px 15px; background: blue; color: white; border: none; cursor: pointer;">
+                            Determine Anomaly Existence
+                        </button>
+                    </form>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 15px; border-radius: 10px; padding: 25px; border-width: 1px;  border-style: solid; border-color: black;">
+                    <div class="dashboard">
+                        <div class="risk-meter">
+                            <h3>Air Risk Assessment</h3>
+                            <div id="riskGauge">
+                                <canvas id="riskChart" width="200" height="200"></canvas>
+                            </div>
+                            <div id="riskText" style="font-style: italic; font-size: 1em;">Submit data to analyze</div>
+                        </div>
+                    </div>
+
+
+                    <div id="results" class="result-section hidden">
+                        <h2>Analysis Results</h2>
+                        <div id="riskScore"></div>
+                        <div id="anomalyDetails"></div>
+                        <div id="recommendations"></div>
+                        
+                        <div id="reportSection" class="hidden">
+                            <div style="margin-top: 20px;">
+                                <button onclick="generateReports()" class="btn-primary" id="generateReportBtn">
+                                    Generate Full Reports
+                                </button>
+                                <button onclick="downloadReport('forensics')" id="downloadForensicsBtn" class="btn-secondary" style="background-color: darkcyan; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;" disabled>
+                                    Download Digital Forensics Report
+                                </button>
+                                <button onclick="downloadReport('ntsb')" id="downloadNTSBBtn" class="btn-secondary" style="background-color: darkcyan; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;"  disabled>
+                                    Download NTSB Report
+                                </button>
+                            </div>
+                            
+                            <div id="reportPreview" class="report-section hidden">
+                                <h4>Report Preview</h4>
+                                <pre id="reportContent"></pre>
+                            </div>
+                        </div>
+                        
+                        <div id="normalOperation" class="hidden">
+                            <div style="background: white; color: green; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                                <h4>Normal Operation Detected</h4>
+                                <p>No anomalies found. Report not available for normal flights.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="resetToHome()" class="hidden" id="newAnalysisBtn" style="border-radius: 4px; padding: 10px 20px; background: grey; color: white; border: none; cursor: pointer;">
+                        New Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-section" style="border-radius: 10px; padding: 25px; border-width: 1px;  border-style: solid; border-color: black;">
+                <h2>Batch Analysis</h2>
+                <p>Upload a CSV containing multiple flight records for batch analysis.</p>
+                <!-- Tentative, possible to add text warning for access roles for batch  -->
+                <div id="batchAccessMessage" class="hidden">
+                    <span id="batchAccessText"></span>
+                </div>
+                
+                <div class="file-upload">
+                    <input type="file" id="batchFile" accept=".csv">
+                </div>
+                
+                <div class="button-group">
+                    <button onclick="analyzeBatch()" id="analyzeBatchBtn" class="btn-primary">Analyze Batch File</button>
+                    <button onclick="downloadBatchResults()" id="downloadBatchBtn" class="btn-success hidden" style="background: darkcyan; color: white; border: none; cursor: pointer;">
+                        Download Results as CSV
+                    </button>
+                    <button onclick="clearBatchAnalysis()" id="clearBatchBtn" class="btn-secondary hidden" style="background: grey; color: white; border: none; cursor: pointer;">
+                        Clear Analysis
+                    </button>
+                </div>
+                <div id="batchLoading" class="loading">
+                    <div class="progress-bar">
+                        <div class="progress" id="batchProgress"></div>
+                    </div>
+                    <p><span id="progressText" style="font-style: italic; font-size: 0.8em;">Click on 'Analyze Batch File'</span></p>
+                </div>
+
+                <div id="batchResults" class="batch-results hidden">
+                    <h3>Batch Analysis Results</h3>
+                    <div id="batchSummary" class="summary-stats"></div>
+                    <div id="batchTableContainer" style="margin-top: 20px; overflow-x: auto;">
+                        <table id="batchTable" class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Record</th>
+                                    <th>Status</th>
+                                    <th>Risk Level</th>
+                                    <th>Confidence</th>
+                                    <th>Anomaly Reasons</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="batchDetails" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Management of users, sessions, tasks done etc 
+        let currentUser = null;
+        let currentRole = null;
+        let currentResults = null;
+        let reportsGenerated = false;
+        let batchAnalysisResults = null;
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('userRole').value;         
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        role: role
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) 
+                {
+                    currentUser = username;
+                    currentRole = role;
+                    document.getElementById('FormLoginSection').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('currentUser').textContent = username;
+                    document.getElementById('currentRole').textContent = role.toUpperCase();
+                    setRolePermissions(role);
+                    
+                } else 
+                {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+        
+        // Set to allow certain roles certain priviledges
+        function setRolePermissions(role) {
+            const batchAccessMessage = document.getElementById('batchAccessMessage');
+            const batchAccessText = document.getElementById('batchAccessText');
+            const analyzeBatchBtn = document.getElementById('analyzeBatchBtn');
+            
+            switch(role) {
+                case 'public':
+                    batchAccessMessage.classList.remove('hidden');
+                    batchAccessText.textContent = 'General users can only view analysis';
+                    analyzeBatchBtn.disabled = true;
+                    break;
+                case 'operator':
+                    batchAccessMessage.classList.remove('hidden');
+                    batchAccessText.textContent = 'Operators can only upload and analyze data';
+                    analyzeBatchBtn.disabled = false;
+                    break;
+                case 'analyst':
+                    batchAccessMessage.classList.add('hidden');
+                    analyzeBatchBtn.disabled = false;
+                    break;
+            }
+        }
+        
+        async function logout() {
+            try {
+                await fetch('/logout', { method: 'POST' });
+            } catch (error) {
+                console.log('Logout error:', error);
+            }         
+            currentUser = null;
+            currentRole = null;
+            currentResults = null;
+            reportsGenerated = false;
+            batchAnalysisResults = null;
+            
+            document.getElementById('FormLoginSection').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('loginForm').reset();
+            document.getElementById('flightAnalysisForm').reset();
+            
+            const riskChart = Chart.getChart('riskChart');
+            if (riskChart) {
+                riskChart.destroy();
+            }
+        }
+        
+
+        function grantPermission(action) {
+            switch(action) {
+                case 'upload_batch':
+                    return currentRole === 'operator' || currentRole === 'analyst';
+                case 'generate_reports':
+                    return currentRole === 'analyst';
+                case 'download_reports':
+                    return currentRole === 'analyst';
+                default:
+                    return false;
+            }
+        }
+        
+        document.getElementById('flightAnalysisForm').addEventListener('submit', async function(e) {
+            e.preventDefault();      
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            } 
+            const formData = new FormData(this);
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    currentResults = result;
+                    reportsGenerated = false;
+                    displayResults(result);
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        function displayResults(data) {
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('newAnalysisBtn').classList.remove('hidden');
+            updateRiskGauge(data.prediction.anomaly, data.prediction.probability);
+            
+            const riskLevel = calculateRiskLevel(data.prediction.anomaly, data.prediction.probability);
+            document.getElementById('riskScore').innerHTML = `
+                <h3 class="risk-${riskLevel}">${data.prediction.anomaly ? 'ANOMALY DETECTED' : 'NO ANOMALIES DETECTED'}</h3>
+                <p>Confidence: ${(data.prediction.probability * 100).toFixed(1)}%</p>
+                <p>Risk Level: <span class="risk-${riskLevel}">${riskLevel.toUpperCase()}</span></p>
+                <p>Phase of Flight: ${document.querySelector('select[name="ev_nr_apt_loc"]').options[document.querySelector('select[name="ev_nr_apt_loc"]').selectedIndex].text}</p>
+            `;
+            // https://www.youtube.com/watch?v=wj1gjOmeVcg and https://www.w3schools.com/js/js_string_templates.asp as well as deepseek
+            
+
+            if (data.prediction.anomaly) {
+                document.getElementById('reportSection').classList.remove('hidden');
+                document.getElementById('normalOperation').classList.add('hidden');
+                if (!grantPermission('generate_reports')) {
+                    document.getElementById('generateReportBtn').disabled = true;
+                    document.getElementById('generateReportBtn').title = 'Analyst role required to generate reports';
+                } else {
+                    document.getElementById('generateReportBtn').disabled = false;
+                    document.getElementById('generateReportBtn').title = '';
+                }
+                
+                if (data.forensics_report) {
+                    document.getElementById('anomalyDetails').innerHTML = `
+                        <h4>Detailed Analysis:</h4>
+                        <pre>${JSON.stringify(data.forensics_report.anomaly_breakdown, null, 2)}</pre>
+                    `;
+                    
+                    document.getElementById('recommendations').innerHTML = `
+                        <h4>Safety Recommendations:</h4>
+                        <ul>${data.forensics_report.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+                    `;
+                    
+                    const canDownload = grantPermission('download_reports');
+                    document.getElementById('downloadForensicsBtn').disabled = !canDownload;
+                    document.getElementById('downloadNTSBBtn').disabled = !canDownload;
+                    
+                    if (!canDownload) {
+                        document.getElementById('downloadForensicsBtn').title = 'Analyst role required to download reports';
+                        document.getElementById('downloadNTSBBtn').title = 'Analyst role required to download reports';
+                    }
+                    
+                    reportsGenerated = true;
+                } else {
+                    document.getElementById('anomalyDetails').innerHTML = `
+                        <h4>Anomaly Detected</h4>
+                        <p>Click "Generate Full Reports" to get detailed analysis.</p>
+                    `;
+                    document.getElementById('recommendations').innerHTML = '';
+                }
+            } else {
+                document.getElementById('reportSection').classList.add('hidden');
+                document.getElementById('normalOperation').classList.remove('hidden');
+                document.getElementById('anomalyDetails').innerHTML = '';
+                document.getElementById('recommendations').innerHTML = '';
+                document.getElementById('reportPreview').classList.add('hidden');
+            }
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function generateReports() {
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            }           
+            if (!grantPermission('generate_reports')) {
+                alert('Analyst role required to generate reports');
+                return;
+            }        
+            if (!currentResults || !currentResults.prediction.anomaly) {
+                alert('No anomalies detected. Reports are only generated when anomalies are found.');
+                return;
+            } 
+            try {
+                const formData = new FormData(document.getElementById('flightAnalysisForm'));
+                const response = await fetch('/generate_report', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    currentResults.forensics_report = result.forensics_report;
+                    currentResults.ntsb_report = result.ntsb_report;
+                    reportsGenerated = true;
+                    
+                    document.getElementById('downloadForensicsBtn').disabled = false;
+                    document.getElementById('downloadNTSBBtn').disabled = false;
+                    
+                    document.getElementById('reportContent').textContent = 
+                        JSON.stringify(result.forensics_report, null, 2);
+                    document.getElementById('reportPreview').classList.remove('hidden');
+                    
+                    document.getElementById('recommendations').innerHTML = `
+                        <h4>Safety Recommendations:</h4>
+                        <ul>${result.forensics_report.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+                    `;
+                    
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function downloadReport(type) {
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            }          
+            if (!grantPermission('download_reports')) {
+                alert('Analyst role required to download reports');
+                return;
+            }
+            if (!currentResults || !reportsGenerated) {
+                alert('Please generate reports first');
+                return;
+            } 
+            let content, filename, mimeType;
+            
+            if (type === 'forensics') {
+                content = JSON.stringify(currentResults.forensics_report, null, 2);
+                filename = `forensics-report-${new Date().toISOString().split('T')[0]}.json`;
+                mimeType = 'application/json';
+            } else {
+                content = currentResults.ntsb_report;
+                filename = `ntsb-report-${new Date().toISOString().split('T')[0]}.txt`;
+                mimeType = 'text/plain';
+            }
+            
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            console.log(`Downloaded ${type} report`);
+        }
+
+        async function analyzeBatch() {
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            }
+            if (!grantPermission('upload_batch')) {
+                alert('Operator or Analyst role required to upload batch files');
+                return;
+            }
+            const fileInput = document.getElementById('batchFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file to analyze');
+                return;
+            }
+            document.getElementById('batchLoading').style.display = 'block';
+            document.getElementById('analyzeBatchBtn').disabled = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/batch_analyze', {
+                    method: 'POST',
+                    body: formData
+                });   
+                const result = await response.json();
+                document.getElementById('batchLoading').style.display = 'none';
+                document.getElementById('analyzeBatchBtn').disabled = false;
+                
+                if (result.success) {
+                    batchAnalysisResults = result;
+                    displayBatchResults(result);
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                document.getElementById('batchLoading').style.display = 'none';
+                document.getElementById('analyzeBatchBtn').disabled = false;
+                alert(error.message);
+            }
+        }
+        function calculateRiskLevel(anomaly, probability) {
+            if (!anomaly) return 'normal';
+            if (probability >= 0.8) return 'high';
+            if (probability >= 0.6) return 'medium';
+            if (probability >= 0.4) return 'low';
+            return 'very low';
+        }
+
+    // Chart visualization depending on the confidence level and risk 
+        function updateRiskGauge(anomaly, probability) {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            const existingChart = Chart.getChart('riskChart');
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            const chartColor = getRiskColor(anomaly, probability);  
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [probability, 1 - probability],
+                        backgroundColor: [chartColor, '#e9ecef']
+                    }]
+                },
+                options: {
+                    cutout: '70%',
+                    responsive: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Confidence: ${(context.parsed * 100).toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const riskLevel = calculateRiskLevel(anomaly, probability);
+            document.getElementById('riskText').innerHTML = `
+                <h3 class="risk-${riskLevel}">
+                    ${(probability * 100).toFixed(1)}% Confidence
+                </h3>
+                <p>Status: ${anomaly ? 'Anomaly Detected' : 'Normal Operation'}</p>
+            `;
+        }
+        // https://www.chartjs.org/docs/latest/charts/doughnut.html and https://www.youtube.com/watch?v=ThhSF0bPCy0
+
+
+        function getRiskColor(anomaly, probability) {
+            if (!anomaly) {
+                return 'green';
+            }
+            if (probability >= 0.8) return 'red';
+            if (probability >= 0.6) return 'orange';
+            if (probability >= 0.4) return 'yellow';
+            return 'greenyellow';
+        }
+
+        function displayBatchResults(data) {
+            const batchResultsDiv = document.getElementById('batchResults');
+            batchResultsDiv.classList.remove('hidden');
+            document.getElementById('downloadBatchBtn').classList.remove('hidden');
+            document.getElementById('clearBatchBtn').classList.remove('hidden');
+            const summary = data.summary;
+            document.getElementById('batchSummary').innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0;">
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #007bff;">
+                        <h4>Total Records</h4>
+                        <p style="font-size: 24px; font-weight: bold;">${summary.total_records}</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid red;">
+                        <h4>Real Anomalies</h4>
+                        <p style="font-size: 24px; font-weight: bold; color: red;">${summary.real_anomalies}</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid green;">
+                        <h4>Normal Operations</h4>
+                        <p style="font-size: 24px; font-weight: bold; color: green;">${summary.normal_operations}</p>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #ffc107;">
+                        <h4>Anomaly Rate</h4>
+                        <p style="font-size: 24px; font-weight: bold;">${(summary.anomaly_rate * 100).toFixed(1)}%</p>
+                    </div>
+                </div>
+            `;
+
+            displayBatchTable(data.results);
+            batchResultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function displayBatchTable(results) {
+            const tableBody = document.getElementById('batchTableBody');
+            tableBody.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                const row = document.createElement('tr');
+                if (result.real_anomaly) {
+                    row.className = 'anomaly';
+                } else {
+                    row.className = 'normal';
+                }
+                const riskLevel = calculateRiskLevel(result.real_anomaly, result.probability);
+                const riskBadge = `<span class="risk-badge risk-${riskLevel}-badge">${riskLevel.toUpperCase()}</span>`;
+                
+                let anomalyReasons = '';
+                if (result.real_anomaly && result.anomaly_reasons) {
+                    anomalyReasons = Object.values(result.anomaly_reasons).join(', ');
+                }     
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${result.real_anomaly ? 'Real Anomaly Detected' : 'Normal Operation'}</td>
+                    <td>${riskBadge}</td>
+                    <td>${(result.probability * 100).toFixed(1)}%</td>
+                    <td>${anomalyReasons}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+
+        async function downloadBatchResults() {
+            if (!batchAnalysisResults) {
+                alert('No batch results to download');
+                return;
+            } 
+            try {
+                const response = await fetch('/download_batch_results', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        results: batchAnalysisResults.results
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `batch_analysis_${new Date().toISOString().split('T')[0]}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } else {
+                    alert('Error downloading results');
+                }
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function clearBatchAnalysis() {
+            document.getElementById('batchResults').classList.add('hidden');
+            document.getElementById('downloadBatchBtn').classList.add('hidden');
+            document.getElementById('clearBatchBtn').classList.add('hidden');
+            document.getElementById('batchFile').value = '';
+            batchAnalysisResults = null;
+            document.getElementById('batchTableBody').innerHTML = '';
+            document.getElementById('batchSummary').innerHTML = '';
+            document.getElementById('analyzeBatchBtn').disabled = false;
+        }
+
+        function resetToHome() {
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('newAnalysisBtn').classList.add('hidden');
+            document.getElementById('reportPreview').classList.add('hidden');
+            document.getElementById('normalOperation').classList.add('hidden');
+            document.getElementById('flightAnalysisForm').reset();
+            const riskChart = Chart.getChart('riskChart');
+            if (riskChart) {
+                riskChart.destroy();
+            }
+
+            document.getElementById('riskText').innerHTML = 'Submit data to analyze';
+            currentResults = null;
+            reportsGenerated = false;
+            document.getElementById('downloadForensicsBtn').disabled = true;
+            document.getElementById('downloadNTSBBtn').disabled = true;
+            document.getElementById('generateReportBtn').disabled = false;
+
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>

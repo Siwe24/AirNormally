@@ -164,7 +164,7 @@ def anomaly_detection(df):
                         df.at[index, 'speed_risk_score'] = 50
                     else: 
                         df.at[index, 'speed_risk_score'] = 0
-                else:  # General aviation
+                else:
                     if knots < 80 or knots > 250: 
                         df.at[index, 'speed_risk_score'] = 100
                     elif knots < 100 or knots > 200: 
@@ -276,7 +276,6 @@ df['overall_anomaly'] = (
     df['weather_anomaly'].astype(int) | 
     df['experience_anomaly'].astype(int) | 
     df['security_anomaly'].astype(int)
-    # df['cybersecurity_anomaly'].astype(int)
 ).astype(int)
 
 #####Balancing classes, select features to focus on
@@ -369,7 +368,7 @@ for col in X_balanced.columns:
             X_balanced.loc[unseen_mask, col] = valid_categories[0]
         X_balanced[col] = label_encoders[col].transform(X_balanced[col])
 #################deepseek: last prompt creating aviation anomlay detection system, as training the model I am using random forest 
-#################There are mixed data types in cols.I want to used my trained label_encoders to map any new categories to 'Unknown' if that category exists, otherwise to the first valid category.
+#################There are mixed data types in cols.I want to use my trained label_encoders to map any new categories to 'Unknown' if that category exists, otherwise to the first valid category.
 
 print("Balanced X shape:", X_balanced.shape)
 print("Y balanced value counts:", y_balanced.value_counts())

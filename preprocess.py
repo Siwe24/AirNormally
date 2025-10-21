@@ -3,9 +3,6 @@ import numpy as np
 import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
-# import tensorflow
-# from tensorflow.keras.models import Sequential, save_model
-# from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import StandardScaler
 import joblib
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -30,10 +27,8 @@ columns_kept = ['ev_id', 'Aircraft_Key', 'acft_make', 'acft_model', 'acft_missin
     'acft_fire', 'acft_expl', 'far_part'
 ]
 
-
 dfaircrafts_processed = df_NTSBAircrafts[columns_kept].copy()
 
-# df_filtered.to_csv('filtered_events.csv', index=False)
 
 print(dfaircrafts_processed.shape)
 print(dfaircrafts_processed.head())

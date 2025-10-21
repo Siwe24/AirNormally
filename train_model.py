@@ -175,6 +175,7 @@ def anomaly_detection(df):
         ####airplanes not included
         df.loc[df['knots'] < 50, 'speed_anomaly'] = 1
         df.loc[df['knots'] > 300, 'speed_anomaly'] = 1
+    df.loc[df['speed_risk_score'] >= 50, 'speed_anomaly'] = 1
    
     #######2.Maintenance Feature
     df['maintenance_anomaly'] = 0
@@ -260,7 +261,8 @@ def anomaly_detection(df):
     df.loc[missing_data_no >= 3, 'security_risk_score'] += 10
 
     ######Combined risk score used to set overall sec score
-    df['security_anomaly'] = (df['security_risk_score'] >= 25).astype(int)
+    # df['security_anomaly'] = (df['security_risk_score'] >= 25).astype(int)
+    df.loc[df['security_risk_score'] >= 25, 'security_anomaly'] = 1
 
     return df
 ######Used limitations to gauage in general tresholds for each make not specific to model

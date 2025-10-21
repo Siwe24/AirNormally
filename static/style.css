@@ -7,7 +7,6 @@
 .anomaly-row { background: lightcoral; margin: 5px 0; padding: 10px; border-radius: 3px; }
 .normal-row { background: lightgreen; margin: 5px 0; padding: 10px; border-radius: 3px; }
 
-/* Table Styles */
 .results-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
 .results-table th, .results-table td { padding: 10px; text-align: left; border-bottom: 1px solid grey; }
 .results-table th { background-color: darkgray; font-weight: bold; }
@@ -19,17 +18,13 @@
 .risk-low-badge { background-color: greenyellow; color: white; }
 .risk-normal-badge { background-color:green; color:black;}
 
-/* Button Styles */
 .button-group { display: flex; gap: 10px; margin-top: 15px; }
 .btn-primary { background-color: blue; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
 .btn-secondary { background-color: lightblue; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
 
-/* Login Styles */
 .login-container { max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid lightgray; border-radius: 10px; background: white; }
 .user-info { background: white; padding: 10px; border-radius: 5px; margin-bottom: 5px; }
 
-
-/* Loading */
 .loading { display: none; text-align: center; padding: 20px; }
 .progress-bar { width: 100%; background: white; border-radius: 5px; margin: 10px 0; }
 .progress { width: 0%; height: 20px; background: lightgreen; border-radius: 5px; transition: width 0.3s; }

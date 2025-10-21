@@ -630,10 +630,11 @@
             batchResultsDiv.classList.remove('hidden');
             document.getElementById('downloadBatchBtn').classList.remove('hidden');
             document.getElementById('clearBatchBtn').classList.remove('hidden');
+            // Summary display
             const summary = data.summary;
             document.getElementById('batchSummary').innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0;">
-                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #007bff;">
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid blue;">
                         <h4>Total Records</h4>
                         <p style="font-size: 24px; font-weight: bold;">${summary.total_records}</p>
                     </div>
@@ -645,7 +646,7 @@
                         <h4>Normal Operations</h4>
                         <p style="font-size: 24px; font-weight: bold; color: green;">${summary.normal_operations}</p>
                     </div>
-                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #ffc107;">
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid lightblue;">
                         <h4>Anomaly Rate</h4>
                         <p style="font-size: 24px; font-weight: bold;">${(summary.anomaly_rate * 100).toFixed(1)}%</p>
                     </div>

@@ -6,8 +6,8 @@ the system, namely, preprocess.py, train_model.py, app.py, and index.html.
 
 1. preprocess.py
 This takes in datasets collected from NTSB under https://data.ntsb.gov/avdata, particularly the avall.zip (Note each month it is updated with more data of recent events). From avall.zip 5 datasets are picked,
-aircraft(NTSBaircraft.csv)),events(NTSBevents.csv), flight_time(NTSBflight_time.csv), Flight_Crew(NTSBFlight_Crew.csv) and narratives(NTSB_Narratives). The 5 datasets are preprocessed, selected columns are kept
-that will be used for feature engineering, and the 5 datasets are then left joined by ev_id and aircraftkey into one dataset(NTSBMerged_processed.csv) that will be used from henceforth.
+aircraft(Aircrafts.csv)),events(Events.csv), flight_time(FlighTimes.csv), Flight_Crew(FlightCrews.csv) and narratives(Narratives). The 5 datasets are preprocessed, selected columns are kept
+that will be used for feature engineering, and the 5 datasets are then left joined by ev_id and aircraftkey into one dataset(MergedProcessed.csv) that will be used from henceforth.
 
 3. train_model.py
 This component consists of the feature engineering and the model training. The dataset is loaded and is filtered down to the makes that will be used, and the model will be trained on. A function is defined,

@@ -4,27 +4,27 @@ import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
-import os
-import tempfile
-from datetime import datetime
 from io import StringIO, BytesIO
 from flask import Flask, send_file, request, render_template, jsonify, session
+import os
 import base64
 import random
+import re
+from datetime import datetime
+import tempfile
 from functools import wraps
 
 app = Flask(__name__)
-app.secret_key = 'airnormally'
+app.secret_key = 'air2124'
 
 #####Authrorized users and their roles
 ####Analyst has full access: Operator cant download report but upl file: public can only analyze single flight and view results
 USERS = {
-    'generaluser': {'password': 'genuser24@', 'role': 'public'},
-    'flight_operator': {'password': 'air24@', 'role': 'operator'}, 
-    'FTKS24': {'password': '1999P@2120l', 'role': 'analyst'},
-    'admin': {'password': 'Administrator1#@24', 'role': 'analyst'}
+    'gen_air': {'password': 'jessica38!@', 'role': 'general'},
+    'operator_tom24': {'password': 'tomhollan32/!', 'role': 'operator'}, 
+    'jakesmith_analyst20': {'password': 'Analyst@J!0921', 'role': 'analyst'},
+    'admin': {'password': 'Administrator1999!y', 'role': 'analyst'}
 }
-
 ##########Authentication decorators
 def login_required(f):
     @wraps(f)
@@ -44,10 +44,10 @@ def role_required(required_roles):
             if user_role not in required_roles:
                 role_names = " or ".join([r.title() for r in required_roles])
                 return jsonify({'success': False,'error': f'Access denied. {role_names} role required.'}), 403
-                
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
 ######Python decorators for user/session management from https://dokumen.pub/flask-web-development-developing-web-applications-with-python-first-edition-9781449372620-1449372627.html
 ####Deepseek "How to use decorators in python for user and access management"
 
@@ -56,34 +56,235 @@ try:
     model = joblib.load('anomaly_model.pkl')
     label_encoders = joblib.load('label_encoders.pkl')
     feature_names = joblib.load('feature_names.pkl')
-    print("Models loaded successfully")
+    print("Models successfully loaded")
 except Exception as e:
     print(f"Error loading models: {e}")
     model = None
 
+
+##############Categorizing narratives into different fields
+class traverse_narratives:
+    def __init__(self):
+
+        self.weather= ['weather', 'storm','low visibility', 'bad weather', 'turbulence', 'wind', 'fog', 'rain', 'snow', 
+        'thunder', 'lightning', 'blizzard', 'crosswind', 'visibility', 'severe weather','ice', 'icing'
+        ]
+
+        self.speed = {'stall': ['stall', 'stalled', 'loss of lift'],
+            'overspeed': ['overspeed', 'excessive speed', 'too fast', 'high speed'],
+            'underspeed': ['slow', 'low speed', 'below speed', 'minimum speed'],
+            'uncontrolled': ['uncontrolled', 'loss of control','no control']
+        }
+        self.maintenance = ['maintenance', 'mechanical', 'failure', 'malfunction', 'fault', 'broken', 'wear', 'tear',
+            'fatigue', 'short circuit', 'electrical fault', 'engine failure', 'system failure'
+        ]
+        
+        self.experience = ['inexperienced', 'student', 'training', 'first time', 'new pilot',
+            'low time', 'low hours', 'learning', 'failed test'
+        ]
+        self.security = ['unauthorized', 'illegal', 'hijack', 'jam','security', 'breach', 'attack', 
+                            'explosion', 'fire', 'bomb', 'threat', 'emergency', 'mayday'
+        ]
+
+    def extract_narratives(self, narrative_text):
+        narrative_lower = narrative_text.lower()
+        
+        highrisk_words = [
+            'stall', 'overspeed', 'failure', 'emergency', 'divert', 'explosion', 'fire', 'hijack', 'attack',
+                'crash', 'collision', 'mayday', 'engine failure', 'engine out', 'lost engine', 'declaring emergency'
+        ]
+        
+        highrisk_narratives = 0
+        for keyword in highrisk_words:
+            if keyword in narrative_lower:
+                highrisk_narratives = 1
+                break
+        
+        return {
+            'highrisk_narratives': highrisk_narratives
+        }
+
+    def incl_narrative(self, flight_data, narrative_text):
+        incl_data = flight_data.copy()
+        
+        if narrative_text and narrative_text.strip():
+            narrative_features = self.extract_narratives(narrative_text)
+            incl_data.update(narrative_features)
+
+            return incl_data
+
 class Airnormally:
     def __init__(self):
+        self.feature_extractor = traverse_narratives()
         self.anomaly_types = {
-            'speed': 'Speed anomalies such as crosswinds and stalls',
+            'speed': 'Speed anomalies such as crosswinds',
             'maintenance': 'Maintenance related issues',
             'weather': 'Weather issues',
             'experience': 'Experience and Training issues',
-            'security': 'Security related issues'
+            'security': 'Security related issues',
+            'complex_patterns': 'Complex interaction patterns'
         }
 
 
-        ######Classifyinhg aircrafts based on make
-        self.com_large = ['BOEING','MCDONNELL DOUGLAS', 'AIRBUS']
-        self.com_small = ['BOMBARDIER', 'EMBRAER', 'BOMBARDIER INC']
-        self.private_plane = ['BEECH', 'CIRRUS', 'DEHAVILLAND', 'DE HAVILLAND']
-        self.small_plane = ['PIPER', 'CESSNA']
+        ######Classifying aircrafts based on make
+        self.largecom = ['AIRBUS','BOEING', 'MCDONNELL DOUGLAS']
+        self.smallcom = ['BELLANCA', 'BOMBARDIER', 'BOMBARDIER INC', 'EMBRAER']
+        self.private = ['BEECH', 'CIRRUS DESIGN CORP', 'DEHAVILLAND', 'DE HAVILLAND']
+        self.small = ['CESSNA','MOONEY','PIPER']
 
-    def prediction(self, sample_data):
+
+ ########Calculate conf score, for anomaly is as is but in percentage format, normal is 1-prob
+    def confidence_score(self, probability, anomaly):
+        if anomaly:
+            return probability * 100
+        else:
+            return (1.0 - probability) * 100
+
+
+
+
+    def complex_detection(self, flight_data, narrative_text=""):
+        incl_data = flight_data.copy()
+        
+        #####ensure numeric fields are float/numeric
+        numeric = ['wind_vel_kts', 'vis_sm', 'flight_hours', 'afm_hrs_since', 'knots', 'crew_age', 'cert_max_gr_wt','wind_vel_kts', 'wx_temp']
+        for field in numeric:
+            if field in incl_data:
+                try:
+                    incl_data[field] = float(incl_data[field])
+                except:
+                    incl_data[field] = 0
+        
+        wind_vel = incl_data.get('wind_vel_kts', 0)
+        vis_sm = incl_data.get('vis_sm', 10)
+        flight_hours = incl_data.get('flight_hours', 1000)
+        afm_hrs_since = incl_data.get('afm_hrs_since', 0)
+        knots = incl_data.get('knots', 200)
+        acft_expl = incl_data.get('acft_expl', 'NO')
+        acft_fire = incl_data.get('acft_fire', 'NO')
+        acars_sys = incl_data.get('acars_sys', 'NORMAL')
+        acpdlc_sys = incl_data.get('cpdlc_sys', 'NORMAL')
+        flt_plan_filed = incl_data.get('flt_plan_filed', 'YES')
+        wx_cond_basic = incl_data.get('wx_cond_basic', 'VMC')
+        
+        incl_data['critical_wind'] = 1 if wind_vel > 25 else 0
+        incl_data['critical_visibility'] = 1 if vis_sm < 3 else 0
+        incl_data['critical_experience'] = 1 if flight_hours < 500 else 0
+        incl_data['critical_maintenance'] = 1 if afm_hrs_since > 500 else 0
+    
+
+
+        ###################Speed based calculation
+        acft_make = str(incl_data.get('acft_make', '')).upper()
+        phase = incl_data.get('ev_nr_apt_loc', 'OFAP')
+        
+        if phase in ['ONAP', 'ON']:
+            if any(make in acft_make for make in self.largecom):
+                incl_data['critical_speed'] = 1 if knots > 80 else 0
+            elif any(make in acft_make for make in self.smallcom):
+                incl_data['critical_speed'] = 1 if knots > 70 else 0
+            else:
+                incl_data['critical_speed'] = 1 if knots > 60 else 0
+        else:
+            if any(make in acft_make for make in self.largecom):
+                incl_data['critical_speed'] = 1 if knots < 350 or knots > 580 else 0
+            elif any(make in acft_make for make in self.smallcom):
+                incl_data['critical_speed'] = 1 if knots < 300 or knots > 480 else 0
+            else:
+                incl_data['critical_speed'] = 1 if knots < 80 or knots > 250 else 0
+        
+ 
+        ##############Security anoamlies also based on thresholds
+        incl_data['communication_failure'] = 0
+        acars_status = str(incl_data.get('acars_sys', 'Normal')).upper()
+        cpdlc_status = str(incl_data.get('cpdlc_sys', 'Normal')).upper()
+        
+        if acars_status in ['SLOW', 'FAILED'] or cpdlc_status in ['SLOW', 'FAILED']:
+            incl_data['communication_failure'] = 1
+            print(f"COMMUNICATION INTERFERENCE DETECTED: ACARS-{acars_status}, CPDLC-{cpdlc_status}")
+        
+        incl_data['flight_procedurev'] = 0
+        if str(flight_data.get('flt_plan_filed', 'YES')).upper() in ['NO', 'N', 'FALSE']:
+            incl_data['flight_procedurev'] = 1
+
+        incl_data['security_incident'] = 0
+        if str(flight_data.get('acft_fire', 'NO')).upper() in ['YES', 'Y']:
+            incl_data['security_incident'] = 1
+        if str(flight_data.get('acft_expl', 'NO')).upper() in ['YES', 'Y']:
+            incl_data['security_incident'] = 1
+
+
+        ##############Complex relationships and interactions between the features
+        incl_data['weather_exp_interaction'] = 0
+        if 'flight_hours' < '1200' and 'wx_cond_basic' == 'IMC':
+            incl_data['weather_exp_interaction'] = 1
+        if 'flight_hours' < '500' and 'wx_cond_basic' == 'VMC':
+            incl_data['weather_exp_interaction'] = 1
+
+        incl_data['vis_exp_interaction'] = 1 if (vis_sm < 3) and (flight_hours < 500) else 0
+        incl_data['maint_exp_interaction'] = 1 if (afm_hrs_since > 300) and (flight_hours < 500) else 0
+
+
+        #######################Risks within narratives in CVR,using keywords
+        incl_data['highrisk_narratives'] = 0
+        if narrative_text:
+            narrative_lower = narrative_text.lower()
+            strong_keywords = [
+                'stall', 'overspeed', 'failure', 'emergency', 'divert', 'stuck', 'explosion', 
+                'fire', 'hijack', 'terrorism', 'attack', 'low visibility', 'crash', 
+                'collision', 'mayday', 'engine failure', 'bad', 'jam',
+                'engine out', 'lost engine', 'declaring emergency', 'shaker'
+            ]
+            for keyword in strong_keywords:
+                if keyword in narrative_lower:
+                    incl_data['highrisk_narratives'] = 1
+                    break
+        
+        ##################Analysis of combined risks
+        incl_data['total_critical_anomalies'] = (
+            incl_data['critical_wind'] + incl_data['critical_visibility'] + 
+            incl_data['critical_experience'] + incl_data['critical_maintenance'] + 
+            incl_data['critical_speed'] + incl_data['security_incident'] +
+            incl_data['communication_failure'] + incl_data['flight_procedurev']
+        )
+        
+        incl_data['total_interaction_risks'] = (
+            incl_data['weather_exp_interaction'] + incl_data['vis_exp_interaction'] + incl_data['maint_exp_interaction']
+        )
+        return incl_data
+
+    def anomaly_prediction(self, flight_data, narrative_text=""):
         if model is None:
-            return False, 0.0, "No Model Found"
+            return False, 0.0, "No Model Found", flight_data, False
+        
         try:
-            #####Loop through df for features absence, if cat rep unk if num rep 0, 
-            df = pd.DataFrame([sample_data])      
+            incl_data = self.complex_detection(flight_data, narrative_text)
+            is_narrative_enhanced = bool(narrative_text and narrative_text.strip())
+            
+            total_critical_anomalies = incl_data.get('total_critical_anomalies', 0)
+            total_interaction_risks = incl_data.get('total_interaction_risks', 0)
+            highrisk_narratives = incl_data.get('highrisk_narratives', 0)
+
+            security_emergency = (
+                str(flight_data.get('acft_fire', 'NO')).upper() in ['YES', 'Y'] or
+                str(flight_data.get('acft_expl', 'NO')).upper() in ['YES', 'Y']
+            )
+            
+
+            ######Emergency keywords
+            has_emergency_narrative = False
+            if narrative_text:
+                narrative_lower = narrative_text.lower()
+                emergency_keywords = [
+                    'engine failure', 'mayday', 'emergency divert', 'declaring emergency',
+                    'engine out', 'lost engine', 'emergency landing', 'flare out',
+                    'crash', 'explosion', 'fire', 'hijack',  'attack', 'no controls'
+                ]
+                has_emergency_narrative = any(keyword in narrative_lower for keyword in emergency_keywords)
+
+            df = pd.DataFrame([incl_data])
+            
+           #######Traverse to find feature set as unkn if in label otherwise leave as null/0
             for feature in feature_names:
                 if feature not in df.columns:
                     if feature in label_encoders:
@@ -91,11 +292,10 @@ class Airnormally:
                     else:
                         df[feature] = 0
             
+            ###########Label econdoing reference is in train_model.py
             for feature in feature_names:
                 if feature in label_encoders:
-                    #####Converts row that has the feature from str to num
-                    current = str(df[feature].iloc[0])              
-                    ####Ensure values not in encoders are atleast set to unk or the actual value is trans cat to num    
+                    current = str(df[feature].iloc[0])
                     if current not in label_encoders[feature].classes_:
                         valid = label_encoders[feature].classes_
                         if 'Unknown' in valid:
@@ -106,181 +306,189 @@ class Airnormally:
                     else:
                         df[feature] = current
                     df[feature] = label_encoders[feature].transform(df[feature].astype(str))
+            
             df = df[feature_names].fillna(0)
+            ######https://youtu.be/naRQyRZrXCE?si=r5-4qNr_RQr1TDqk
+
+            #####Using model to make predictions and set prob
             prediction = model.predict(df)[0]
             probability = model.predict_proba(df)[0][1]
-            is_anomaly = self.anomaly_validation(prediction, probability, sample_data)    
-            return bool(is_anomaly), float(probability), "Success"   
-            ######https://youtu.be/naRQyRZrXCE?si=r5-4qNr_RQr1TDqk
-        except Exception as e:
-            return False, 0.0, str(e)
-
-    def anomaly_validation(self, model_prediction, probability, flight_data):
-        if not model_prediction:
-            return False
-        if self.is_normal_operation(flight_data):
-            return False
-        return True
-
-
-    def is_normal_operation(self, flight_data):
-        phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')
-        knots = flight_data.get('knots', 200)
-        acft_make = str(flight_data.get('acft_make', '')).upper()
         
+            is_critical_emergency = security_emergency or has_emergency_narrative
+            
 
-        ####Similar to model setting tresholds for each of the 5 features
-        if phase_of_flight in ['ONAP', 'ON']:
-            if knots > 100:
-                return False
-            elif acft_make in self.com_large and knots > 80:
-                return False
-            elif acft_make in self.com_small and knots > 70:
-                return False
-            elif acft_make in self.private_plane and knots > 60:
-                return False
-            elif acft_make in self.small_plane and knots > 50:
-                return False
-        else:
-            if acft_make in self.com_large:
-                if knots < 350 or knots > 580:
-                    return False
-            elif acft_make in self.com_small:
-                if knots < 300 or knots > 480:
-                    return False
-            elif acft_make in (self.private_plane + self.small_plane):
-                if knots < 80 or knots > 250:
-                    return False
+            ########Security and emergency narratives can overide thresholds since they are more dire
+            if is_critical_emergency:
+                is_anomaly = True
+                probability = max(probability, 0.95)
+            
+            ########Critical has to at least be at least 85%
+            elif total_critical_anomalies > 0:
+                is_anomaly = True
+                probability = max(probability, 0.85)
+            #######narrative risks that are high enough should at least be 80%
+            elif highrisk_narratives == 1:
+                is_anomaly = True
+                probability = max(probability, 0.80)
+            #####If no violations, use the value as is this is for noamal scenarios
             else:
-                if knots < 100 or knots > 400:
-                    return False
-        
-        wind_vel = flight_data.get('wind_vel_kts', 0)
-        if wind_vel > 25:
-            return False
-        
-        visibility = flight_data.get('vis_sm', 5)
-        if visibility < 3:
-            return False
-        
+                is_anomaly = bool(prediction)
 
-        flight_hours = flight_data.get('flight_hours', 200)
-        if flight_hours < 100:
-            return False
-        
-        hours_since_inspection = flight_data.get('afm_hrs_since', 10)
-        if hours_since_inspection > 500:
-            return False
-        
-        flight_plan = str(flight_data.get('flt_plan_filed', 'YES')).upper()
-        if flight_plan in ['NO', 'N', 'FALSE']:
-            return False
+            return is_anomaly, float(probability), incl_data, is_narrative_enhanced
+                
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            return False, 0.0, str(e), flight_data, False
 
-        ACARS = str(flight_data.get('acars_sys', 'Normal')).upper().strip()
-        if ACARS in ['SLOW', 'FAILED']:
-            return False
 
-        CPDLC = str(flight_data.get('cpdlc_sys', 'Normal')).upper().strip()
-        if CPDLC in ['SLOW', 'FAILED']:
-            return False
-       
-
-        explosion = str(flight_data.get('acft_expl', 'NO')).upper()
-        fire = str(flight_data.get('acft_fire', 'NO')).upper()
-        if explosion in ['YES', 'Y', 'TRUE'] or fire in ['YES', 'Y', 'TRUE']:
-            return False  
-        return True
-
+######Assigning risk level based on the prob only for anomalies
     def risk_level(self, anomaly, probability):
         if not anomaly:
-            return "normal"
+            return "NORMAL"
         elif probability >= 0.8:
-            return "high"
+            return "HIGH"
         elif probability >= 0.6:
-            return "medium"
+            return "MEDIUM"
         elif probability >= 0.4:
-            return "low"
+            return "LOW"
         else:
-            return "very low"
+            return "VERY LOW"
 
-    def analyze_anomaly_types(self, flight_data):
+
+#######Analysis on both thresholds and patterns 
+    def analyze_anomaly_types(self, flight_data, narrative_text=""):
         analysis = {}
+        threshold_violations = {}
+        complex_patterns = {}
+
+        combination_data = self.complex_detection(flight_data, narrative_text)
         
-        knots = flight_data.get('knots')
-        acft_make = str(flight_data.get('acft_make', '')).upper()
-        phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')
-
-        if knots and acft_make:
-            if phase_of_flight in ['ONAP', 'ON']:
-                if knots > 100:
-                    analysis['speed'] = f"CRITICAL: Excessive ground speed: {knots}kts"
-                elif acft_make in self.com_large and knots > 80:
-                    analysis['speed'] = f"High airport speed: {knots}kts for {acft_make}"
-                elif acft_make in self.com_small and knots > 70:
-                    analysis['speed'] = f"High airport speed: {knots}kts for {acft_make}"
-                elif acft_make in self.private_plane and knots > 60:
-                    analysis['speed'] = f"High airport speed: {knots}kts for {acft_make}"
-                elif acft_make in self.small_plane and knots > 50:
-                    analysis['speed'] = f"High airport speed: {knots}kts for {acft_make}"
-            else:
-                if acft_make in self.com_large:
-                    if knots < 350:
-                        analysis['speed'] = f"Slow cruise: {knots}kts for {acft_make}"
-                    elif knots > 580:
-                        analysis['speed'] = f"Overspeed: {knots}kts for {acft_make}"
-                elif acft_make in self.com_small:
-                    if knots < 300:
-                        analysis['speed'] = f"Slow cruise: {knots}kts for {acft_make}"
-                    elif knots > 480:
-                        analysis['speed'] = f"Overspeed: {knots}kts for {acft_make}"
-                elif acft_make in (self.private_plane + self.small_plane):
-                    if knots < 80:
-                        analysis['speed'] = f"Slow flight: {knots}kts for {acft_make}"
-                    elif knots > 250:
-                        analysis['speed'] = f"Overspeed: {knots}kts for {acft_make}"
+        ############Normal Threshold violations datacted with reason
+        if combination_data.get('critical_wind', 0) == 1:
+            threshold_violations['wind'] = f"High crosswind: {flight_data.get('wind_vel_kts', 0)}kts"
         
-        wind_vel = flight_data.get('wind_vel_kts', 0)
-        if wind_vel > 25:
-            analysis['crosswind'] = f"High crosswind: {wind_vel}kts"
-
-        if flight_data.get('afm_hrs_since', 0) > 500:
-            analysis['maintenance'] = "Extended time since last inspection"
+        if combination_data.get('critical_visibility', 0) == 1:
+            threshold_violations['visibility'] = f"Low visibility: {flight_data.get('vis_sm', 10)} miles"
         
-        if flight_data.get('vis_sm', 10) < 3:
-            analysis['weather'] = "Low visibility conditions"
+        if combination_data.get('critical_experience', 0) == 1:
+            threshold_violations['experience'] = f"Low pilot experience: {flight_data.get('flight_hours', 1000)} hours"
         
-        if flight_data.get('flight_hours', 1000) < 100:
-            analysis['experience'] = "Low pilot flight hours"
-
-
-        ACARS = str(flight_data.get('acars_sys', 'Normal')).upper().strip()
-        if ACARS in ['SLOW', 'FAILED']:
-            if 'security' in analysis:
-                analysis['security'] += f" | ACARS System(Possible communication jamming)"
-            else:
-                analysis['security'] = f"ACARS System(Possible communication jamming)"
-
-        CPDLC = str(flight_data.get('cpdlc_sys', 'Normal')).upper().strip()
-        if CPDLC in ['SLOW', 'FAILED']:
-            if 'security' in analysis:
-                analysis['security'] += f" | CPDLC System(Possible communication jamming)"
-            else:
-                analysis['security'] = f"CPDLC System(Possible communication jamming)"
-
-        explosion = str(flight_data.get('acft_expl', 'NO')).upper()
-        fire = str(flight_data.get('acft_fire', 'NO')).upper()
-        if explosion in ['YES', 'Y', 'TRUE'] or fire in ['YES', 'Y', 'TRUE']:
-            if 'security' in analysis:
-                analysis['security'] += f" | Explosion or Fire Detected"
-            else:
-                analysis['security'] = f"Explosion or Fire Detected"
+        if combination_data.get('critical_maintenance', 0) == 1:
+            threshold_violations['maintenance'] = f"Extended maintenance: {flight_data.get('afm_hrs_since', 0)} hours since inspection"
         
-        if str(flight_data.get('flt_plan_filed', 'YES')).upper() in ['NO', 'N', 'FALSE']:
-            analysis['flightplan'] = "Flight plan not filed"
-    
-        return analysis
+        if combination_data.get('critical_speed', 0) == 1:
+            threshold_violations['speed'] = f"Speed anomaly: {flight_data.get('knots', 0)}kts for {flight_data.get('acft_make', 'Unknown')}"
+        
+        if combination_data.get('security_incident', 0) == 1:
+            threshold_violations['security'] = "Security incident detected (fire/explosion)"
+        
+        if combination_data.get('communication_failure', 0) == 1:
+            threshold_violations['communication'] = "Communication system failure"
+        
+        if combination_data.get('flight_procedurev', 0) == 1:
+            threshold_violations['procedural'] = "Flight plan not filed"
+        
+        ################Complex patterns detected with reason
+        if combination_data.get('weather_exp_interaction', 0) == 1:
+            complex_patterns['weather_experience'] = "High winds with inexperienced pilot"
+        
+        if combination_data.get('vis_exp_interaction', 0) == 1:
+            complex_patterns['visibility_experience'] = "Low visibility with inexperienced pilot"
+        
+        if combination_data.get('maint_exp_interaction', 0) == 1:
+            complex_patterns['maintenance_experience'] = "Overdue maintenance with inexperienced pilot"
+        
+        if combination_data.get('highrisk_narratives', 0) == 1 and narrative_text:
+            complex_patterns['narrative'] = "High risk issues detected from CVR"
+        
+        total_critical = combination_data.get('total_critical_anomalies', 0)
+        if total_critical >= 3:
+            complex_patterns['multiple_critical'] = f"Multiple critical anomalies: {total_critical}"
+        
+        total_interactions = combination_data.get('total_interaction_risks', 0)
+        if total_interactions >= 2:
+            complex_patterns['multiple_interactions'] = f"Multiple risk relationships: {total_interactions}"
+        
+        return {
+            'threshold_violations': threshold_violations,
+            'complex_patterns': complex_patterns,
+            'risk_scores': {
+                'total_critical_anomalies': total_critical,
+                'total_interaction_risks': total_interactions,
+                'narrative_risk': combination_data.get('highrisk_narratives', 0)
+            }
+        }
 
-######Same as the single prediction but just for files/multiple entries 
+    def suggest_recommendations(self, anomaly, probability, flight_data, narrative_text=""):
+        recommendations = []
+        
+        if not anomaly:
+            recommendations.append("Continue normal operations")
+            recommendations.append("Maintain current safety protocols")
+            return recommendations
+        
+        #####High priority rec
+        if probability > 0.7:
+            recommendations.append("IMMEDIATE ACTION: Conduct emergency safety briefing")
+        elif probability > 0.5:
+            recommendations.append("Schedule immediate maintenance inspection")
+            recommendations.append("Review pilot training and qualifications")
+
+        analysis = self.analyze_anomaly_types(flight_data, narrative_text)
+
+        for violation_type, violation_desc in analysis['threshold_violations'].items():
+            if 'wind' in violation_type:
+                recommendations.append("Implement crosswind landing procedures")
+            elif 'visibility' in violation_type:
+                recommendations.append("Review/Implement low visibility procedures")
+            elif 'experience' in violation_type:
+                recommendations.append("Assign experienced Pilot or First Officer")
+            elif 'maintenance' in violation_type:
+                recommendations.append("Schedule immediate maintenance inspection")
+            elif 'speed' in violation_type:
+                recommendations.append("Review speed thresholds")
+            elif 'security' in violation_type:
+                recommendations.append("Conduct immediate security investigation")
+            elif 'communication' in violation_type:
+                recommendations.append("Ensure enough security techniques are applied in communications systems")
+            elif 'procedural' in violation_type:
+                recommendations.append("Review flight planning procedures and checklists")
+        
+        for pattern_type, pattern_desc in analysis['complex_patterns'].items():
+            if 'weather_experience' in pattern_type:
+                recommendations.append("Enhanced weather training required for inexperienced pilots")
+            elif 'visibility_experience' in pattern_type:
+                recommendations.append("IMC/Low visibility training required for inexperienced pilots")
+            elif 'maintenance_experience' in pattern_type:
+                recommendations.append("Supervised operations during maintenance periods")
+            elif 'narrative' in pattern_type:
+                recommendations.append("Conduct detailed narrative investigation")
+            elif 'multiple_critical' in pattern_type:
+                recommendations.append("Comprehensive safety and systems review required")
+            elif 'multiple_interactions' in pattern_type:
+                recommendations.append("Review operational procedures for complex scenarios")
+        
+        ######Narrative based recommendation, depending on the words detected
+        if narrative_text:
+            narrative_lower = narrative_text.lower()
+            if any(keyword in narrative_lower for keyword in ['stall', 'dive', 'nose down', 'overspeed']):
+                recommendations.append("Review all stall recovery techniques")
+            if any(keyword in narrative_lower for keyword in ['fire', 'explosion']):
+                recommendations.append("Review all emergency procedures for fires and explosions")
+            if any(keyword in narrative_lower for keyword in ['communication', 'radio','silent']):
+                recommendations.append("Test all communications systems for backdoors")
+            if any(keyword in narrative_lower for keyword in ['engine failure', 'engine out']):
+                recommendations.append("IMMEDIATE: Execute engine failure emergency procedures and abort take-off/prepare for emergency landing")
+        
+        #######Give any recommendation just for safety assurance 
+        if not recommendations:
+            recommendations.append("Review flight operations and procedures")
+            recommendations.append("Conduct safety assessment")
+        
+        return recommendations
+
+
+############Batch prediction for csv files
     def batch_prediction(self, df):
         if model is None:
             return None      
@@ -298,17 +506,14 @@ class Airnormally:
                 if feature in label_encoders:
                     valid_categories = label_encoders[feature].classes_
                     df_processed[feature] = df_processed[feature].astype(str)
-                    ####mask t/f getting valid cat/fields then inverse to prev crash due to unk
                     mask = ~df_processed[feature].isin(valid_categories)
                     if 'Unknown' in valid_categories:
                         df_processed.loc[mask, feature] = 'Unknown'
                     else:
                         df_processed.loc[mask, feature] = valid_categories[0] if len(valid_categories) > 0 else 'Unknown'
-                    
                     df_processed[feature] = label_encoders[feature].transform(df_processed[feature])
             
-            df_processed = df_processed[feature_names].fillna(0)
-            
+            df_processed = df_processed[feature_names].fillna(0) 
             predictions = model.predict(df_processed)
             probabilities = model.predict_proba(df_processed)[:, 1]
             
@@ -316,22 +521,24 @@ class Airnormally:
             anomaly_reasons = []
             operation_status = []
             risk_levels = []
-            
+            anomaly_narratives = []  
             for i, (pred, prob) in enumerate(zip(predictions, probabilities)):
                 flight_data = df.iloc[i].to_dict()
-            ######https://stackoverflow.com/questions/47117136/predict-for-each-sample-check-the-value-in-pandas-dataframe-and-append-to-a-new
-            #####new list, get pred and prob,
-                if pred and not self.is_normal_operation(flight_data):
-                    real_anomalies.append(True)
-                    anomaly_reasons.append(self.analyze_anomaly_types(flight_data))
+                narrative_text = flight_data.get('narrative_text', '')
+                is_anomaly, enhanced_prob, incl_data, _ = self.anomaly_prediction(flight_data, narrative_text)
+                real_anomalies.append(is_anomaly)
+                
+                if is_anomaly:
+                    anomaly_analysis = self.analyze_anomaly_types(flight_data, narrative_text)
+                    anomaly_reasons.append(anomaly_analysis['threshold_violations'])
                     operation_status.append("Real Anomaly")
-                    risk_levels.append(self.risk_level(True, prob))
+                    risk_levels.append(self.risk_level(True, enhanced_prob))
                 else:
-                    real_anomalies.append(False)
                     anomaly_reasons.append({})
                     operation_status.append("Normal Operation")
-                    risk_levels.append("Normal")
-            
+                    risk_levels.append("NORMAL")
+            ######https://stackoverflow.com/questions/47117136/predict-for-each-sample-check-the-value-in-pandas-dataframe-and-append-to-a-new
+            #####new list, get pred and prob,
             return {
                 'model_predictions': predictions.tolist(),
                 'probabilities': probabilities.tolist(),
@@ -345,198 +552,44 @@ class Airnormally:
         except Exception as e:
             print(f"Batch prediction error: {e}")
             return None
-
-    def forensics_report_generation(self, flight_data, prediction_result):
-        anomaly, probability, status = prediction_result    
-        random_no = ''.join(random.choices('0123456789', k=3))
-        current_user = session.get('user', 'Unknown Analyst')
-        
-        report_data = {
-            "report_id": f"DFR-{datetime.now().strftime('%d%m%Y-%H%M%S')}-{random_no}",
-            "Analyst Username": current_user,
-            # "timestamp": datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
-            "timestamp": datetime.now().strftime('%d %B %Y %H:%M:%S'),
-            "flight_data": flight_data,
-            "analysis": {
-                "anomaly_detected": anomaly,
-                "confidence_score": probability,
-                "risk_level": self.risk_level(anomaly, probability),
-                "status": status
-            },
-            "anomaly_breakdown": self.analyze_anomaly_types(flight_data) if anomaly else {},
-            "recommendations": self.suggest_recommendations(anomaly, probability, flight_data),
-            "compliance_check": self.compliance_check(flight_data)
-        }
-        return report_data
-
-    def ntsb_report_generation(self, flight_data, prediction_result):
-        anomaly, probability, status = prediction_result   
-        current_user = session.get('user', 'Unknown Analyst')    
-        random_no = ''.join(random.choices('0123456789', k=14))
-        report = f"""
-NATIONAL TRANSPORTATION SAFETY BOARD Report
-
-Report Number: NTSB-AIR-{datetime.now().strftime('%d%m%Y')}
-Date of Analysis: {datetime.now().strftime('%B %d, %Y')}
-Analyst Username: {current_user}
-Case ID: {flight_data.get('ev_id', random_no)}
-
-EXECUTIVE SUMMARY:
-{'ANOMALY DETECTED - Immediate action required' if anomaly else 'NORMAL OPERATION - No anomalies detected'}
-Confidence Level: {probability:.1%}
-Risk Assessment: {self.risk_level(anomaly, probability).upper()}
-
-ANALYSIS PARAMETERS:
-- Aircraft Make: {flight_data.get('acft_make', 'Unknown')}
-- Phase of Flight: {flight_data.get('ev_nr_apt_loc', 'Unknown')}
-- Weather Conditions: {flight_data.get('wx_cond_basic', 'Unknown')}
-- Pilot Experience: {flight_data.get('flight_hours', 'Unknown')} hours
-- Speed: {flight_data.get('knots', 'Unknown')} knots
-- Flight Plan: {flight_data.get('flt_plan_filed', 'Unknown')}
-- Security Threat (Explosion): {flight_data.get('acft_expl', 'Unknown')}
-- Security Threat (Fire): {flight_data.get('acft_fire', 'Unknown')}
-- Cybersecurity Threat (ACARS): {flight_data.get('acars_sys', 'Unknown')}
-- Cybersecurity Threat (CPDLC): {flight_data.get('cpdlc_sys', 'Unknown')}
-
-DIGITAL FORENSICS FINDINGS:
-{self.forensics_findings(flight_data) if anomaly else "No anomalies detected - Normal flight operation"}
-
-SAFETY RECOMMENDATIONS:
-{self.safety_recommendations(anomaly, probability, flight_data)}
-
-CONCLUSION:
-This analysis indicates {'Safety issues found requiring further investigation' if anomaly else 'Normal operation - No safety concerns'}.
-        """     
-        return report
-
-
-    def suggest_recommendations(self, anomaly, probability, flight_data):
-        recommendations = []      
-        if anomaly:
-            if probability > 0.7:
-                recommendations.append("Immediate Action Required: Conduct safety analysis before next flight")
-                recommendations.append("Suggestion: Review Pilot Training on particular aircraft")
-            else:
-                recommendations.append("Continue monitoring flight parameters")
-                recommendations.append("Review standard operating procedures")
-        else:
-            recommendations.append("Continue normal operations")
-            recommendations.append("Maintain current safety protocols")
-        
-        if anomaly:
-            phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')
-            knots = flight_data.get('knots', 170)
-            acft_make = str(flight_data.get('acft_make', '')).upper()
-            
-            if phase_of_flight in ['ONAP', 'ON']:
-                if knots > 80:
-                    recommendations.append("SPEED CRITICAL: Reduce ground speed immediately")
-                elif knots > 60:
-                    recommendations.append("Speed: Monitor ground operations carefully")
-            else:
-                if acft_make in self.com_large and (knots < 350 or knots > 580):
-                    recommendations.append("Speed: Adjust to normal cruise range (350-580 kts)")
-                elif acft_make in self.com_small and (knots < 300 or knots > 480):
-                    recommendations.append("Speed: Adjust to normal cruise range (300-480 kts)")
-
-            if flight_data.get('vis_sm', 10) < 3:
-                recommendations.append("Weather: Consider alternative routing")
-
-            if flight_data.get('flight_hours', 1000) < 100:
-                recommendations.append("Training: Consider additional supervision")
-            
-            if flight_data.get('afm_hrs_since', 0) > 500:
-                recommendations.append("Maintenance: Schedule inspection")
-
-            ACARS = str(flight_data.get('acars_sys', 'Normal')).upper()
-            if ACARS in ['SLOW', 'FAILED']:
-                recommendations.append("Security: Encrypt ACARS communication, implement firewall or IDS")
-
-            CPDLC = str(flight_data.get('cpdlc_sys', 'Normal')).upper()
-            if CPDLC in ['SLOW', 'FAILED']:
-                recommendations.append("Security: Encrypt CPDLC communication, implement firewall or IDS")
-
-            explosion = str(flight_data.get('acft_expl', 'NO')).upper()
-            fire = str(flight_data.get('acft_fire', 'NO')).upper()
-            if explosion in ['YES', 'Y', 'TRUE'] or fire in ['YES', 'Y', 'TRUE']:
-                recommendations.append("Security: Explosion or Fire investigate immediately")
-        
-        return recommendations
     
-    def compliance_check(self, flight_data):
-        compliance = {
-            "flight_planning": "Compliant" if str(flight_data.get('flt_plan_filed', 'YES')).upper() in ['YES', 'Y', 'TRUE'] else "Non-compliant",
-            "maintenance": "Compliant" if flight_data.get('afm_hrs_since', 0) <= 500 else "Review needed",
-            "pilot_qualifications": "Compliant" if flight_data.get('flight_hours', 1000) >= 50 else "Review needed",
-            "speed_compliance": "Compliant" if self.speed_compliance(flight_data) else "Non-compliant"
-        }
-        return compliance
-    
-    def speed_compliance(self, flight_data):
-        knots = flight_data.get('knots', 0)
-        acft_make = str(flight_data.get('acft_make', '')).upper()
-        phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')     
-        if phase_of_flight in ['ONAP', 'ON']:
-            return knots <= 100 
-        else:
-            if acft_make in self.com_large:
-                return 350 <= knots <= 580
-            elif acft_make in self.com_small:
-                return 300 <= knots <= 480
-            elif acft_make in (self.private_plane + self.small_plane):
-                return 80 <= knots <= 250
-            else:
-                return 100 <= knots <= 400 
-    
-    def forensics_findings(self, flight_data):
+    def forensics_findings(self, flight_data, narrative_text=""):
         findings = []     
-        phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')
-        knots = flight_data.get('knots', 0)
-        acft_make = str(flight_data.get('acft_make', '')).upper()
+        combination_data = self.complex_detection(flight_data, narrative_text)
         
-        if phase_of_flight in ['ONAP', 'ON AIRPORT', 'ON']:
-            if knots > 100:
-                findings.append("CRITICAL: Excessive ground speed detected")
-            elif knots > 80:
-                findings.append("High-speed ground operation")
-        else:
-            if acft_make in self.com_large and (knots < 350 or knots > 580):
-                findings.append("Aircraft outside normal cruise speed")
+        if combination_data.get('critical_wind', 0) == 1:
+            findings.append("High wind speeds detected")
         
-        if flight_data.get('wind_vel_kts', 0) > 25:
-            findings.append("High wind speeds")
-        
-        if flight_data.get('vis_sm', 10) < 3:
+        if combination_data.get('critical_visibility', 0) == 1:
             findings.append("Reduced visibility conditions")
         
-        if flight_data.get('flight_hours', 1000) < 100:
+        if combination_data.get('critical_experience', 0) == 1:
             findings.append("Pilot experience is significantly low")
-
-        if str(flight_data.get('flt_plan_filed', 'YES')).upper() in ['NO', 'N', 'FALSE']:
-            findings.append("Flight plan not filed")
-
-        ACARS = str(flight_data.get('acars_sys', 'Normal')).upper()
-        if ACARS in ['SLOW', 'FAILED']:
-            findings.append("ACARS Failure check for spoofing, eavesdropping or jamming")
-
-        CPDLC = str(flight_data.get('cpdlc_sys', 'Normal')).upper()
-        if CPDLC in ['SLOW', 'FAILED']:
-            findings.append("CPDLC Failure check for spoofing, eavesdropping or jamming")
-
-        explosion = str(flight_data.get('acft_expl', 'NO')).upper()
-        fire = str(flight_data.get('acft_fire', 'NO')).upper()
-        if explosion in ['YES', 'Y', 'TRUE'] or fire in ['YES', 'Y', 'TRUE']:
-            findings.append("Fire or Explosion detected")
-
-        if flight_data.get('afm_hrs_since', 0) > 500:
+        
+        if combination_data.get('critical_maintenance', 0) == 1:
             findings.append("Maintenance inspection overdue")
-
+        
+        if combination_data.get('critical_speed', 0) == 1:
+            findings.append("Aircraft speed outside normal operating range")
+        
+        if combination_data.get('security_incident', 0) == 1:
+            findings.append("Security incident detected")
+        
+        if combination_data.get('communication_failure', 0) == 1:
+            findings.append("Communication system failure (check for spoofing, eavesdropping or jamming)")
+        
+        if combination_data.get('flight_procedurev', 0) == 1:
+            findings.append("Flight plan not filed")
+        
+        if combination_data.get('highrisk_narratives', 0) == 1 and narrative_text:
+            findings.append("High risk CVR Data detected")
+        
         if not findings:
             findings.append("No significant forensic anomalies detected")
         
         return "\n".join(findings)
     
-    def safety_recommendations(self, anomaly, probability, flight_data):
+    def safety_recommendations(self, anomaly, probability, flight_data, narrative_text=""):
         recommendations = []
         
         if anomaly:
@@ -553,12 +606,10 @@ This analysis indicates {'Safety issues found requiring further investigation' i
         if flight_data.get('flight_hours', 1000) < 100:
             recommendations.append("5. Provide experienced supervision")
 
-        ACARS = str(flight_data.get('acars_sys', 'Normal')).upper()
-        if ACARS in ['SLOW', 'FAILED']:
+        if str(flight_data.get('acars_sys', 'Normal')).upper() in ['SLOW', 'FAILED']:
             recommendations.append("Ensure ACARS communications are protected")
 
-        CPDLC = str(flight_data.get('cpdlc_sys', 'Normal')).upper()
-        if CPDLC in ['SLOW', 'FAILED']:
+        if str(flight_data.get('cpdlc_sys', 'Normal')).upper() in ['SLOW', 'FAILED']:
             recommendations.append("Ensure CPDLC communications are protected")
       
         if not recommendations:
@@ -566,9 +617,120 @@ This analysis indicates {'Safety issues found requiring further investigation' i
         
         return "\n".join(recommendations)
 
+
+    def compliance_check(self, flight_data):
+        compliance = {
+            "flight_planning": "Compliant" if str(flight_data.get('flt_plan_filed', 'YES')).upper() in ['YES', 'Y'] else "Non-compliant",
+            "maintenance": "Compliant" if flight_data.get('afm_hrs_since', 0) <= 500 else "Review needed",
+            "pilot_qualifications": "Compliant" if flight_data.get('flight_hours', 1000) >= 50 else "Review needed",
+            "speed_compliance": "Compliant" if self.speed_compliance(flight_data) else "Non-compliant"
+        }
+        return compliance
+    
+    def speed_compliance(self, flight_data):
+        knots = flight_data.get('knots', 0)
+        acft_make = str(flight_data.get('acft_make', '')).upper()
+        phase_of_flight = flight_data.get('ev_nr_apt_loc', 'OFAP')     
+        if phase_of_flight in ['ONAP', 'ON']:
+            return knots <= 100 
+        else:
+            if acft_make in self.largecom:
+                return 350 <= knots <= 580
+            elif acft_make in self.smallcom:
+                return 300 <= knots <= 480
+            elif acft_make in (self.private + self.small):
+                return 80 <= knots <= 250
+            else:
+                return 100 <= knots <= 400
+
+
+    def forensics_report_generation(self, flight_data, prediction_result, narrative_text=""):
+        anomaly, probability, incl_data, is_narrative_enhanced = prediction_result    
+        random_no = ''.join(random.choices('0123456789', k=3))
+        current_user = session.get('user', 'Unknown Analyst')
+        confidence_display = self.confidence_score(probability, anomaly)
+        
+        anomaly_analysis = self.analyze_anomaly_types(flight_data, narrative_text)
+        
+        report_data = {
+            "report_id": f"DFIR-{datetime.now().strftime('%d%m%Y-%H%M%S')}-{random_no}",
+            "analyst_username": current_user,
+            "timestamp": datetime.now().strftime('%d %B %Y %H:%M:%S'),
+            "narrative_enhanced": is_narrative_enhanced,
+            "original_narrative": narrative_text if narrative_text else "N/A",
+            "flight_data": flight_data,
+            "analysis": {
+                "anomaly_detected": anomaly,
+                "anomaly_probability": probability,
+                "confidence_score": confidence_display,
+                "risk_level": self.risk_level(anomaly, probability)
+            },
+            "anomaly_breakdown": anomaly_analysis['threshold_violations'],
+            "complex_patterns": anomaly_analysis['complex_patterns'],
+            "risk_scores": anomaly_analysis['risk_scores'],
+            "recommendations": self.suggest_recommendations(anomaly, probability, flight_data, narrative_text),
+            "compliance_check": self.compliance_check(flight_data)
+        }
+        return report_data
+
+    def ntsb_report_generation(self, flight_data, prediction_result, narrative_text=""):
+        anomaly, probability, incl_data, is_narrative_enhanced = prediction_result   
+        current_user = session.get('user', 'Unknown Analyst')    
+        random_no = ''.join(random.choices('0123456789', k=14))
+        confidence_display = self.confidence_score(probability, anomaly)
+        narrative_section = f"NARRATIVE: {narrative_text}\n\n" if narrative_text else "NARRATIVE: No narrative provided\n\n"
+        
+        anomaly_analysis = self.analyze_anomaly_types(flight_data, narrative_text)
+        findings = []
+        for violation in anomaly_analysis['threshold_violations'].values():
+            findings.append(f"- {violation}")
+        for pattern in anomaly_analysis['complex_patterns'].values():
+            findings.append(f"- {pattern}")
+
+
+        findings_section = "\n".join(findings) if findings else "No specific anomalies identified"
+        
+        report = f"""
+NATIONAL TRANSPORTATION SAFETY BOARD REPORT
+
+Report Number: NTSB-DFIR-{datetime.now().strftime('%d%m%Y')}
+Date of Analysis: {datetime.now().strftime('%B %d, %Y')}
+Analyst Username: {current_user}
+Narrative Enhanced Analysis: {'Yes' if is_narrative_enhanced else 'No'}
+
+{narrative_section}
+EXECUTIVE SUMMARY:
+{'ANOMALY DETECTED - Immediate action required' if anomaly else 'NORMAL OPERATION - No anomalies detected'}
+Anomaly Probability: {probability:.1%}
+Confidence Level: {confidence_display:.1f}%
+Risk Assessment: {self.risk_level(anomaly, probability).upper()}
+
+FINDINGS:
+{findings_section}
+
+ANALYSIS PARAMETERS:
+- Aircraft Make: {flight_data.get('acft_make', 'Unknown')}
+- Phase of Flight: {flight_data.get('ev_nr_apt_loc', 'Unknown')}
+- Weather Conditions: Wind {flight_data.get('wind_vel_kts', 'Unknown')}kts, Visibility {flight_data.get('vis_sm', 'Unknown')} miles
+- Pilot Experience: {flight_data.get('flight_hours', 'Unknown')} hours
+- Speed: {flight_data.get('knots', 'Unknown')} knots
+- Flight Plan: {flight_data.get('flt_plan_filed', 'Unknown')}
+
+DIGITAL FORENSICS FINDINGS:
+{self.forensics_findings(flight_data, narrative_text) if anomaly else "No anomalies detected - Normal flight operation"}
+
+SAFETY RECOMMENDATIONS:
+{self.safety_recommendations(anomaly, probability, flight_data, narrative_text)}
+
+CONCLUSION:
+This analysis indicates {'Safety issues found requiring further investigation' if anomaly else 'Normal operation - No safety concerns'}.
+        """     
+        return report
+
 safety_system = Airnormally()
 
-##########Auth routes for username, ppassword and role valid and access 
+##########For all routing same source as flask web dev ######Python decorators for user/session management from https://dokumen.pub/flask-web-development-developing-web-applications-with-python-first-edition-9781449372620-1449372627.html
+####Deepseek "How to use decorators in python for user and access management"
 @app.route('/login', methods=['POST'])
 def login():
     try:
@@ -629,9 +791,7 @@ def user_info():
         'user': session['user'],
         'role': session['role']
     })
-#######Same as source above Flask Web Development
 
-########Routing for funcs req auth
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -658,23 +818,35 @@ def analyze_flight():
             'cpdlc_sys': request.form.get('cpdlc_sys', 'Normal')
         }
         
-        prediction_result = safety_system.prediction(flight_data)
-        anomaly, probability, status = prediction_result
+        narrative_text = request.form.get('narrative_text', '').strip()
+        
+        prediction_result = safety_system.anomaly_prediction(flight_data, narrative_text)
+        anomaly, probability, incl_data, is_narrative_enhanced = prediction_result
+        confidence_display = safety_system.confidence_score(probability, anomaly)
+        detailed_analysis = safety_system.analyze_anomaly_types(flight_data, narrative_text)
+        recommendations = safety_system.suggest_recommendations(anomaly, probability, flight_data, narrative_text)
         
         forensics_report = None
         ntsb_report = None
         
         if anomaly:
-            forensics_report = safety_system.forensics_report_generation(flight_data, prediction_result)
-            ntsb_report = safety_system.ntsb_report_generation(flight_data, prediction_result)
+            forensics_report = safety_system.forensics_report_generation(flight_data, prediction_result, narrative_text)
+            ntsb_report = safety_system.ntsb_report_generation(flight_data, prediction_result, narrative_text)
         
         response_data = {
             'success': True,
             'prediction': {
                 'anomaly': anomaly,
                 'probability': probability,
-                'status': status
+                'confidence': confidence_display,
+                'risk_level': safety_system.risk_level(anomaly, probability)
             },
+            'narrative_enhanced': is_narrative_enhanced,
+            'narrative_provided': bool(narrative_text),
+            'threshold_violations': detailed_analysis['threshold_violations'],
+            'complex_patterns': detailed_analysis['complex_patterns'],
+            'risk_scores': detailed_analysis['risk_scores'],
+            'recommendations': recommendations,
             'reports_generated': anomaly, 
         }
         
@@ -695,7 +867,6 @@ def batch_analyze():
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}) 
         file = request.files['file']
-
 
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}) 
@@ -758,7 +929,7 @@ def download_batch_results():
         output.seek(0)     
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'batch_analysis_results_{timestamp}.csv'
-        ####Batch analysis https://stackoverflow.com/questions/52089872/convert-pandas-dataframe-to-bytes-like-object and deepseek        
+        
         return send_file(
             output,
             mimetype='text/csv',
@@ -790,15 +961,19 @@ def generate_report():
             'acars_sys': request.form.get('acars_sys', 'Normal'),
             'cpdlc_sys': request.form.get('cpdlc_sys', 'Normal')
         } 
-        prediction_result = safety_system.prediction(flight_data)
-        anomaly, probability, status = prediction_result
+        narrative_text = request.form.get('narrative_text', '').strip()
+        prediction_result = safety_system.anomaly_prediction(flight_data, narrative_text)
+        anomaly, probability, incl_data, is_narrative_enhanced = prediction_result
+        
         if not anomaly:
             return jsonify({
                 'success': False,
                 'error': 'No anomalies detected. Report generation is not available for normal operations.'
             })  
-        forensics_report = safety_system.forensics_report_generation(flight_data, prediction_result)
-        ntsb_report = safety_system.ntsb_report_generation(flight_data, prediction_result)
+
+        forensics_report = safety_system.forensics_report_generation(flight_data, prediction_result, narrative_text)
+        ntsb_report = safety_system.ntsb_report_generation(flight_data, prediction_result, narrative_text)
+        
         return jsonify({
             'success': True,
             'forensics_report': forensics_report,

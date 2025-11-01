@@ -1,9 +1,7 @@
 import pandas as pd
 import numpy as np
-import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
 import joblib
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.impute import SimpleImputer
@@ -11,285 +9,257 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
-############################Aircrafts
 ######Load and clean aircrafts dataset 
-df_NTSBAircrafts = pd.read_csv('NTSBaircraft.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip',low_memory=False)
-
-print(df_NTSBAircrafts.head())
+df_aircrafts = pd.read_csv('Aircrafts.csv',on_bad_lines='skip', delimiter=';', encoding='latin-1',low_memory=False)
+print(df_aircrafts.head())
 
 #####Select columns required 
-columns_kept = ['ev_id', 'Aircraft_Key', 'acft_make', 'acft_model', 'acft_missing', 'acft_year',
-    'acft_category', 'cert_max_gr_wt', 'num_eng', 'fuel_on_board', 'type_last_insp',
-    'date_last_insp', 'afm_hrs', 'afm_hrs_last_insp', 'afm_hrs_since', 'certs_held',
-    'oper_code', 'second_pilot', 'oper_sched', 'dprt_apt_id', 'dest_apt_id',
-    'dprt_time', 'dprt_timezn', 'phase_flt_spec', 'flt_plan_filed',
-    'flight_plan_activated', 'oper_dom_int', 'oper_pax_cargo', 'damage',
-    'acft_fire', 'acft_expl', 'far_part'
+columns_kept = ['ev_id', 'Aircraft_Key', 'acft_make', 'acft_model', 'acft_missing', 'acft_year', 'flight_plan_activated',
+    'acft_category', 'cert_max_gr_wt', 'num_eng', 'fuel_on_board', 'type_last_insp', 'acft_fire',
+    'date_last_insp', 'afm_hrs', 'afm_hrs_last_insp', 'afm_hrs_since', 'certs_held', 'acft_expl',
+    'oper_code', 'second_pilot', 'oper_sched', 'dprt_apt_id', 'dest_apt_id', 'far_part', 'damage',
+    'dprt_time', 'dprt_timezn', 'phase_flt_spec', 'flt_plan_filed', 'oper_pax_cargo', 'oper_dom_int'
 ]
+dfprocessed_aircrafts = df_aircrafts[columns_kept].copy()
 
-dfaircrafts_processed = df_NTSBAircrafts[columns_kept].copy()
-
-
-print(dfaircrafts_processed.shape)
-print(dfaircrafts_processed.head())
-print(dfaircrafts_processed.columns.tolist())
+print(dfprocessed_aircrafts.shape)
+print(dfprocessed_aircrafts.head())
+print(dfprocessed_aircrafts.columns.tolist())
 
 ###Select numeric columns float/int, where it is null/empty just fill with median
-numeric_columns = dfaircrafts_processed.select_dtypes(include=['int64', 'float64']).columns
-numeric_columns_median = dfaircrafts_processed[numeric_columns].median()
-dfaircrafts_processed[numeric_columns] = dfaircrafts_processed[numeric_columns].fillna(numeric_columns_median)
+numeric = dfprocessed_aircrafts.select_dtypes(include=['int64', 'float64']).columns
+numeric_median = dfprocessed_aircrafts[numeric].median()
+dfprocessed_aircrafts[numeric] = dfprocessed_aircrafts[numeric].fillna(numeric_median)
 
 
 ######Select text columns object and fill num/empty cols with unknown
-text_columns = dfaircrafts_processed.select_dtypes(include=['object']).columns
-dfaircrafts_processed[text_columns] = dfaircrafts_processed[text_columns].fillna('Unknown')
+text = dfprocessed_aircrafts.select_dtypes(include=['object']).columns
+dfprocessed_aircrafts[text] = dfprocessed_aircrafts[text].fillna('Unknown')
 
-#####go through eaxh column remove white spaces and capitalize
-for col in text_columns:
-    dfaircrafts_processed[col] = dfaircrafts_processed[col].str.strip().str.upper()
+#####go through each column remove white spaces and capitalize
+for col in text:
+    dfprocessed_aircrafts[col] = dfprocessed_aircrafts[col].str.strip()
+    dfprocessed_aircrafts[col] = dfprocessed_aircrafts[col].str.upper()
 
 #####Drop duplicate rows/columns 
-dfaircrafts_processed = dfaircrafts_processed.drop_duplicates()
+dfprocessed_aircrafts = dfprocessed_aircrafts.drop_duplicates()
 
 ####Save to csv 
-dfaircrafts_processed.to_csv('NTSBAircrafts_processed.csv', index=False)
-print(dfaircrafts_processed[['ev_id', 'Aircraft_Key']].dtypes)
+dfprocessed_aircrafts.to_csv('ProcessedAircrafts.csv', index=False)
+print(dfprocessed_aircrafts[['ev_id', 'Aircraft_Key']].dtypes)
 
 
 ########################Events
-
 ####Load NTSB dataset
-df_NTSBEvents = pd.read_csv('NTSBevents.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip',low_memory=False)
-print(df_NTSBEvents.head())
+df_events = pd.read_csv('Events.csv', on_bad_lines='skip', delimiter=';', encoding='latin-1',low_memory=False)
+print(df_events.head())
 
 #######Select columns to keep 
-columns_kept1 = [ 'ev_id','ev_type','ev_year', 'ev_time','ev_highest_injury',
-    'ev_nr_apt_loc','latitude','longitude','mid_air','on_ground_collision',
-    'light_cond','wx_cond_basic','sky_cond_ceil', 'sky_ceil_ht','vis_sm', 'wx_temp',
-    'wx_dew_pt','wind_dir_deg','wind_vel_kts','gust_kts', 'wx_int_precip', 'altimeter'
+columns_kept1 = [ 'ev_id','ev_type','ev_year', 'ev_nr_apt_loc', 'latitude', 'ev_time','ev_highest_injury',
+    'longitude','mid_air','on_ground_collision','light_cond','wx_cond_basic', 'wx_dew_pt','wind_dir_deg',
+    'wind_vel_kts','gust_kts', 'wx_int_precip', 'altimeter', 'sky_cond_ceil', 'sky_ceil_ht','vis_sm', 'wx_temp'
 ]
-
 ####Copy the dataset only with the kept columns 
-dfevents_processed = df_NTSBEvents[columns_kept1].copy()
-
-
-print(dfevents_processed.shape)
-print(dfevents_processed.head())
-print(dfevents_processed.columns.tolist())
-
+dfproccessed_events = df_events[columns_kept1].copy()
+print(dfproccessed_events.shape)
+print(dfproccessed_events.head())
+print(dfproccessed_events.columns.tolist())
 
 ####Selecting columns expected to be numeric 
-numeric_columns = ['ev_year', 'latitude', 'longitude', 'sky_ceil_ht', 'vis_sm', 'wx_temp', 
-                'wx_dew_pt', 'wind_dir_deg', 'wind_vel_kts', 'gust_kts', 'altimeter']
-
-
-####Make sure if the column is not int/flot convert it to numeric 
-for col in numeric_columns:
-    if col in dfevents_processed.columns:
-        dfevents_processed[col] = pd.to_numeric(dfevents_processed[col], errors='coerce')
-
-####set median for ampty/null columns
-for col in numeric_columns:
-    if col in dfevents_processed.columns:
-        numeric_columns_median = dfevents_processed[col].median()
-        dfevents_processed[col] = dfevents_processed[col].fillna( numeric_columns_median)
+numeric = ['ev_year', 'vis_sm', 'wx_temp', 'wind_vel_kts', 'gust_kts','longitude',
+                'wx_dew_pt', 'wind_dir_deg', 'altimeter', 'latitude', 'sky_ceil_ht']
 
 ######Selecting text columns 
-text_columns = ['ev_type', 'ev_highest_injury', 'ev_nr_apt_loc', 'mid_air', 'on_ground_collision',
-             'light_cond', 'wx_cond_basic', 'sky_cond_ceil', 'wx_int_precip']
+text = ['ev_type', 'ev_highest_injury', 'wx_cond_basic', 'sky_cond_ceil', 'ev_nr_apt_loc',
+             'light_cond', 'wx_int_precip', 'mid_air', 'on_ground_collision']
 ####Empty/null columns set to unknown 
-for col in text_columns:
-    if col in dfevents_processed.columns:
-        dfevents_processed[col] = dfevents_processed[col].fillna('Unknown')
+for col in text:
+    if col in dfproccessed_events.columns:
+        dfproccessed_events[col] = dfproccessed_events[col].fillna('Unknown')
 
+####Make sure if the column is not int/flot convert it to numeric 
+for col in numeric:
+    if col in dfproccessed_events.columns:
+        dfproccessed_events[col] = pd.to_numeric(dfproccessed_events[col], errors='coerce')
+
+####set median for ampty/null columns
+for col in numeric:
+    if col in dfproccessed_events.columns:
+        numeric_median = dfproccessed_events[col].median()
+        dfproccessed_events[col] = dfproccessed_events[col].fillna(numeric_median)
 #####if event time is null/empty set default to midnight
-if 'ev_time' in dfevents_processed.columns:
-    dfevents_processed['ev_time'] = dfevents_processed['ev_time'].fillna('00:00')
-
+if 'ev_time' in dfproccessed_events.columns:
+    dfproccessed_events['ev_time'] = dfproccessed_events['ev_time'].fillna('00:00')
 ####Remove white space and capitilize the text columns
-for col in text_columns:
-    if col in dfevents_processed.columns:
-        dfevents_processed[col] = dfevents_processed[col].str.strip().str.upper()
+for col in text:
+    if col in dfproccessed_events.columns:
+        dfproccessed_events[col] = dfproccessed_events[col].str.strip()
+        dfproccessed_events[col] = dfproccessed_events[col].str.upper()
 
 ###drop any duplicates 
-dfevents_processed = dfevents_processed.drop_duplicates()
-
+dfproccessed_events = dfproccessed_events.drop_duplicates()
 
 ####Save to csv
-dfevents_processed.to_csv('NTSBEvents_processed.csv', index=False)
+dfproccessed_events.to_csv('ProcessedEvents.csv', index=False)
 
 
 ###############Flight Crew
-
 ####Load dataset 
-df_NTSBFlightCrew = pd.read_csv('NTSBFlight_Crew.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip',low_memory=False)
-print(df_NTSBFlightCrew.head())
-
+dfflightcrew = pd.read_csv('FlightCrews.csv', on_bad_lines='skip', delimiter=';', encoding='latin-1',low_memory=False)
+print(dfflightcrew.head())
 
 ####Select columns to keep 
-columns_kept2 = ['ev_id','Aircraft_Key', 'crew_no', 'crew_category', 'crew_age', 'med_certf','med_crtf_vldty', 'date_lst_med',
-    'crew_rat_endorse', 'crew_tox_perf', 'pc_profession', 'bfr', 'bfr_date', 'ft_as_of','pilot_flying'
+columns_kept2 = ['ev_id','Aircraft_Key', 'crew_no', 'crew_rat_endorse', 'crew_tox_perf', 'pc_profession', 'pilot_flying',
+    'bfr', 'bfr_date', 'ft_as_of', 'crew_category', 'crew_age', 'med_certf','med_crtf_vldty', 'date_lst_med'
 ]
+dfprocessed_flightcrew = dfflightcrew[columns_kept2].copy()
+print(dfprocessed_flightcrew.shape)
+print(dfprocessed_flightcrew.head())
+print(dfprocessed_flightcrew.columns.tolist())
 
-dfflightcrew_processed = df_NTSBFlightCrew[columns_kept2].copy()
 
-print(dfflightcrew_processed.shape)
-print(dfflightcrew_processed.head())
-print(dfflightcrew_processed.columns.tolist())
+####Select text columns; any null/empty value replaced with Unknown 
+text = ['crew_category', 'pc_profession', 'bfr', 'crew_tox_perf', 
+            'pilot_flying','med_certf', 'crew_rat_endorse']
+for col in text:
+    if col in dfprocessed_flightcrew.columns:
+        dfprocessed_flightcrew[col] = dfprocessed_flightcrew[col].fillna('Unknown')
+
+#####Remove white space and ensure captilization 
+for col in text:
+    if col in dfprocessed_flightcrew.columns:
+        dfprocessed_flightcrew[col] = dfprocessed_flightcrew[col].str.strip()
+        dfprocessed_flightcrew[col] = dfprocessed_flightcrew[col].str.upper()
+
+####Select date columns and if empty/null set default date
+date = ['date_lst_med', 'bfr_date']
+for col in date:
+    if col in dfprocessed_flightcrew.columns:
+        dfprocessed_flightcrew[col] = dfprocessed_flightcrew[col].fillna('2008-01-01')
 
 
 ###Select numeric columns
-numeric_columns = ['crew_age', 'med_crtf_vldty', 'ft_as_of']
-
+numeric = ['crew_age', 'med_crtf_vldty', 'ft_as_of']
 ###If columns is supposed to be numeric but not, force to numeric field
-for col in numeric_columns:
-    if col in dfflightcrew_processed.columns:
-        dfflightcrew_processed[col] = pd.to_numeric(dfflightcrew_processed[col], errors='coerce')
+for col in numeric:
+    if col in dfprocessed_flightcrew.columns:
+        dfprocessed_flightcrew[col] = pd.to_numeric(dfprocessed_flightcrew[col], errors='coerce')
 
 #######Check if no missing values and set the median else use 0 as median if missing values
-for col in numeric_columns:
-    if col in dfflightcrew_processed.columns:
-        if dfflightcrew_processed[col].notna().any():
-            median_val = dfflightcrew_processed[col].median()
+for col in numeric:
+    if col in dfprocessed_flightcrew.columns:
+        if dfprocessed_flightcrew[col].notna().any():
+            median_val = dfprocessed_flightcrew[col].median()
         else: 
             median_val = 0
-        dfflightcrew_processed[col] = dfflightcrew_processed[col].fillna(median_val)
-
-####Select text columns; any null/empty value replaced with Unknown 
-text_columns = ['crew_category', 'med_certf', 'crew_rat_endorse', 'crew_tox_perf', 
-             'pc_profession', 'bfr', 'pilot_flying']
-for col in text_columns:
-    if col in dfflightcrew_processed.columns:
-        dfflightcrew_processed[col] = dfflightcrew_processed[col].fillna('Unknown')
-
-
-####Select date columns and if empty/null set default date
-date_columns = ['date_lst_med', 'bfr_date']
-for col in date_columns:
-    if col in dfflightcrew_processed.columns:
-        dfflightcrew_processed[col] = dfflightcrew_processed[col].fillna('2008-01-01')
-
-
-#####Remove white space and ensure captilization 
-for col in text_columns:
-    if col in dfflightcrew_processed.columns:
-        dfflightcrew_processed[col] = dfflightcrew_processed[col].str.strip().str.upper()
+        dfprocessed_flightcrew[col] = dfprocessed_flightcrew[col].fillna(median_val)
 
 ####drop duplicates 
-dfflightcrew_processed = dfflightcrew_processed.drop_duplicates()
-
+dfprocessed_flightcrew = dfprocessed_flightcrew.drop_duplicates()
 ####Save to CSV
-dfflightcrew_processed.to_csv('NTSBFlightCrew_processed.csv', index=False)
+dfprocessed_flightcrew.to_csv('ProcessedFlightCrew.csv', index=False)
 
 
 #############################Flight Time
-df_NTSBFlightTime = pd.read_csv('NTSBFlight_time.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip',low_memory=False)
+dfflighttime = pd.read_csv('FlightTimes.csv', on_bad_lines='skip', delimiter=';', encoding='latin-1',low_memory=False)
+print(dfflighttime.head())
 
-print(df_NTSBFlightTime.head())
-
-columns_kept3 = ['ev_id','Aircraft_Key', 'crew_no', 'flight_type',
-    'flight_craft', 'flight_hours'
+columns_kept3 = ['ev_id','Aircraft_Key', 'flight_craft',
+    'crew_no', 'flight_type', 'flight_hours'
 ]
-dfflightTime_processed = df_NTSBFlightTime[columns_kept3].copy()
+dfprocessed_flighttime = dfflighttime[columns_kept3].copy()
 
-
-print(dfflightTime_processed.shape)
-print(dfflightTime_processed.head())
-print(dfflightTime_processed.columns.tolist())
+print(dfprocessed_flighttime.shape)
+print(dfprocessed_flighttime.head())
+print(dfprocessed_flighttime.columns.tolist())
 
 #####Numeric and text columns
-numeric_columns = ['flight_hours']
-text_columns = ['flight_type', 'flight_craft']
-
-####Numeric columns expected to have numeric dtype otherwise force 
-for col in numeric_columns:
-    if col in dfflightTime_processed.columns:
-        dfflightTime_processed[col] = pd.to_numeric(dfflightTime_processed[col], errors='coerce')
-
-###Calcuate median if columns not empty ottheriwise fill with 0
-for col in numeric_columns:
-    if col in dfflightTime_processed.columns:
-        if dfflightTime_processed[col].notna().any():
-            median_val = dfflightTime_processed[col].median()
-        else:
-            median_val = 0
-        dfflightTime_processed[col] = dfflightTime_processed[col].fillna(median_val)
+numeric = ['flight_hours']
+text = ['flight_type', 'flight_craft']
 
 ####If text column is empty or null fill with Unknown
-for col in text_columns:
-    if col in dfflightTime_processed.columns:
-        dfflightTime_processed[col] = dfflightTime_processed[col].fillna('Unknown')
+for col in text:
+    if col in dfprocessed_flighttime.columns:
+        dfprocessed_flighttime[col] = dfprocessed_flighttime[col].fillna('Unknown')
 
 ####Remove white space and capitalize 
-for col in text_columns:
-    if col in dfflightTime_processed.columns:
-        dfflightTime_processed[col] = dfflightTime_processed[col].str.strip().str.upper()
+for col in text:
+    if col in dfprocessed_flighttime.columns:
+        dfprocessed_flighttime[col] = dfprocessed_flighttime[col].str.strip()
+        dfprocessed_flighttime[col] = dfprocessed_flighttime[col].str.upper()
+
+####Numeric columns expected to have numeric dtype otherwise force 
+for col in numeric:
+    if col in dfprocessed_flighttime.columns:
+        dfprocessed_flighttime[col] = pd.to_numeric(dfprocessed_flighttime[col], errors='coerce')
+
+###Calcuate median if columns not empty ottheriwise fill with 0
+for col in numeric:
+    if col in dfprocessed_flighttime.columns:
+        if dfprocessed_flighttime[col].notna().any():
+            median_val = dfprocessed_flighttime[col].median()
+        else:
+            median_val = 0
+        dfprocessed_flighttime[col] = dfprocessed_flighttime[col].fillna(median_val)
 
 ####drop duplicates
-dfflightTime_processed = dfflightTime_processed.drop_duplicates()
+dfprocessed_flighttime = dfprocessed_flighttime.drop_duplicates()
 
 ####save to csv 
-dfflightTime_processed.to_csv('NTSBFlightTime_processed.csv', index=False)
+dfprocessed_flighttime.to_csv('ProcessedFlightTime.csv', index=False)
 
 
 ###############################Narratives 
-df_NTSBNarratives = pd.read_csv('NTSB_Narratives.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip',low_memory=False)
-
-print(df_NTSBNarratives.head())
+df_narratives = pd.read_csv('Narratives.csv', on_bad_lines='skip', delimiter=';', encoding='latin-1',low_memory=False)
+print(df_narratives.head())
 
 ######Select columns to keep 
-columns_kept4 = ['ev_id','Aircraft_Key', 'narr_accp',
-    'narr_accf', 'narr_cause','narr_inc'
+columns_kept4 = ['ev_id','Aircraft_Key','narr_accf', 'narr_cause',
+     'narr_accp','narr_inc'
 ]
+dfprocessed_narratives = df_narratives[columns_kept4].copy()
 
-dfNTSBNarratives_processed = df_NTSBNarratives[columns_kept4].copy()
-
-print(dfNTSBNarratives_processed.shape)
-print(dfNTSBNarratives_processed.head())
-print(dfNTSBNarratives_processed.columns.tolist())
-
+print(dfprocessed_narratives.shape)
+print(dfprocessed_narratives.head())
+print(dfprocessed_narratives.columns.tolist())
 
 #####Text columns 
-text_columns = ['narr_accp','narr_accf', 'narr_cause','narr_inc']
+text = ['narr_cause','narr_accp','narr_accf','narr_inc']
 
 ###Fill empty/null columns with unknown
-for col in text_columns:
-    if col in dfNTSBNarratives_processed.columns:
-        dfNTSBNarratives_processed[col] = dfNTSBNarratives_processed[col].fillna('Unknown')
-
+for col in text:
+    if col in dfprocessed_narratives.columns:
+        dfprocessed_narratives[col] = dfprocessed_narratives[col].fillna('Unknown')
 ####Remove white spaces and capitalize 
-for col in text_columns:
-    if col in dfNTSBNarratives_processed.columns:
-        dfNTSBNarratives_processed[col] = dfNTSBNarratives_processed[col].str.strip().str.upper()
+for col in text:
+    if col in dfprocessed_narratives.columns:
+        dfprocessed_narratives[col] = dfprocessed_narratives[col].str.strip()
+        dfprocessed_narratives[col] = dfprocessed_narratives[col].str.upper()
 
 ####drop duplicates
-dfNTSBNarratives_processed = dfNTSBNarratives_processed.drop_duplicates()
-
+dfprocessed_narratives = dfprocessed_narratives.drop_duplicates()
 ####Save as csv
-dfNTSBNarratives_processed.to_csv('NTSBFlightNarratives_processed.csv', index=False)
-
-
-print(dfNTSBNarratives_processed.head())
-
+dfprocessed_narratives.to_csv('ProcessedNarratives.csv', index=False)
+print(dfprocessed_narratives.head())
 
 
 #########Merge all datasets into one using event id and aircraft key 
-df_aircrafts = pd.read_csv('NTSBAircrafts_processed.csv')
+df_aircrafts = pd.read_csv('ProcessedAircrafts.csv')
 df_aircrafts[['ev_id', 'Aircraft_Key']] = df_aircrafts[['ev_id', 'Aircraft_Key']].astype(str)
-df_events = pd.read_csv('NTSBEvents_processed.csv')
-df_events[['ev_id']] = df_events[['ev_id']].astype(str)
-df_crew = pd.read_csv('NTSBFlightCrew_processed.csv')
+df_crew = pd.read_csv('ProcessedFlightCrew.csv')
 df_crew[['ev_id', 'Aircraft_Key']] = df_crew[['ev_id', 'Aircraft_Key']].astype(str)
-df_time = pd.read_csv('NTSBFlightTime_processed.csv')
-df_time[['ev_id', 'Aircraft_Key']] = df_time[['ev_id', 'Aircraft_Key']].astype(str)
-df_narratives = pd.read_csv('NTSBFlightNarratives_processed.csv')
+df_events = pd.read_csv('ProcessedEvents.csv')
+df_events[['ev_id']] = df_events[['ev_id']].astype(str)
+df_narratives = pd.read_csv('ProcessedNarratives.csv')
 df_narratives[['ev_id', 'Aircraft_Key']] = df_narratives[['ev_id', 'Aircraft_Key']].astype(str)
+df_time = pd.read_csv('ProcessedFlightTime.csv')
+df_time[['ev_id', 'Aircraft_Key']] = df_time[['ev_id', 'Aircraft_Key']].astype(str)
 
 ####left join the datasets on event id and aircraft key 
 merged_df = pd.merge(df_aircrafts, df_events, on=['ev_id'], how='left')
 merged_df = pd.merge(merged_df, df_crew, on=['ev_id', 'Aircraft_Key'], how='left')
-merged_df = pd.merge(merged_df, df_time, on=['ev_id', 'Aircraft_Key'], how='left')
 merged_df = pd.merge(merged_df, df_narratives, on=['ev_id', 'Aircraft_Key'], how='left')
+merged_df = pd.merge(merged_df, df_time, on=['ev_id', 'Aircraft_Key'], how='left')
 
 ####Drop duplicates based on ev id and aircraft key 
 merged_df = merged_df.drop_duplicates(subset=['ev_id', 'Aircraft_Key'])
@@ -300,12 +270,9 @@ print(merged_df.columns.tolist())
 print(len(merged_df))
 
 print(merged_df['ev_type'].value_counts())
-
 ####Saved merged dataset in csv
-merged_df.to_csv('NTSBMerged_processed.csv', index=False)
+merged_df.to_csv('ProcessedMerged.csv', index=False)
 
-####Read from csv 
-df= pd.read_csv('NTSBMerged_processed.csv', delimiter=';', encoding='latin-1',on_bad_lines='skip', engine='python')
 
 
 

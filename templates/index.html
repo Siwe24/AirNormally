@@ -24,7 +24,7 @@
             <div style="margin-bottom: 15px;">
                 <label>Role:</label>
                 <select id="userRole" name="userRole" required style="width: 85%; padding: 8px; margin: 5px 0;">
-                    <option value="public">Public User</option>
+                    <option value="general">General User</option>
                     <option value="operator">Operator</option>
                     <option value="analyst">Analyst</option>
                 </select>
@@ -35,7 +35,7 @@
         </form>
     </div>
 
-  <!-- Actual Analysis incl current user and lot out sec -->
+  <!-- Actual Analysis incl current user and log out sec -->
     <div id="mainApp" class="hidden">
         <div class="user-info">
             Logged in as: <strong id="currentUser">User</strong> 
@@ -58,7 +58,8 @@
                                 <h3>Aircraft Information</h3>
                                 <select name="acft_make">
                                     <option value="AIRBUS">AIRBUS</option>
-                                    <option value="BEECH">BEECH</option>                                    
+                                    <option value="BEECH">BEECH</option>
+                                    <option value="BELLANCA">BELLANCA</option>                                    
                                     <option value="BOEING">BOEING</option>
                                     <option value="BOMBARDIER">BOMBARDIER</option>
                                     <option value="BOMBARDIER INC">BOMBARDIER INC</option>  
@@ -67,6 +68,7 @@
                                     <option value="DE HAVILLAND">DE HAVILLAND</option>                                                                              
                                     <option value="EMBRAER">EMBRAER</option>
                                     <option value="MCDONNELL DOUGLAS">MCDONNELL DOUGLAS</option>
+                                    <option value="MOONEY">MOONEY</option>
                                     <option value="PIPER">PIPER</option>
                                     <option value="Other">Other</option>
                                 </select>
@@ -81,7 +83,6 @@
                                 <select name="wx_cond_basic">
                                     <option value="VMC">Visual Meteorological Conditions</option>
                                     <option value="IMC">Instrument Meteorological Conditions</option>
-                                    <option value="MVMC">Marginal VMC</option>
                                 </select>
                             </div>
 
@@ -130,6 +131,14 @@
                                     <option value="Slow">Slow CPLDC Operation</option>
                                     <option value="Failed">Failed CPDLC Operation</option>
                                 </select>
+                            </div>
+                            <div>
+                                <h3>Narrative / CVR Transcription</h3>
+                                <textarea name="narrative_text" placeholder="Enter cockpit voice recording transcript or incident narrative..." 
+                                          style="width: 90%; height: 50px; padding: 8px; margin: 5px 0; border: 1px solid white; border-radius: 4px;"></textarea>
+                                <p style="font-size: 0.8em; color: grey; margin-top: 5px;">
+                                    Optional: (Only for complex analysis)
+                                </p>
                             </div>
                         </div>                
                         <button type="submit" style="margin-top: 10px; padding: 10px 15px; background: blue; color: white; border: none; cursor: pointer;">
@@ -192,7 +201,7 @@
             <div class="form-section" style="border-radius: 10px; padding: 25px; border-width: 1px;  border-style: solid; border-color: black;">
                 <h2>Batch Analysis</h2>
                 <p>Upload a CSV containing multiple flight records for batch analysis.</p>
-                <!-- Tentative, possible to add text warning for access roles for batch  -->
+                <!-- Tentative, possible to add text warning for access roles for batch, rev later -->
                 <div id="batchAccessMessage" class="hidden">
                     <span id="batchAccessText"></span>
                 </div>
@@ -295,14 +304,14 @@
             const analyzeBatchBtn = document.getElementById('analyzeBatchBtn');
             
             switch(role) {
-                case 'public':
+                case 'general':
                     batchAccessMessage.classList.remove('hidden');
                     batchAccessText.textContent = 'General users can only view analysis';
                     analyzeBatchBtn.disabled = true;
                     break;
                 case 'operator':
                     batchAccessMessage.classList.remove('hidden');
-                    batchAccessText.textContent = 'Operators can only upload and analyze data';
+                    batchAccessText.textContent = 'Operators can only upload and analyze';
                     analyzeBatchBtn.disabled = false;
                     break;
                 case 'analyst':
@@ -311,8 +320,21 @@
                     break;
             }
         }
-        
-        async function logout() {
+
+        function grantPermission(action) {
+            switch(action) {
+                case 'upload_batch':
+                    return currentRole === 'operator' || currentRole === 'analyst';
+                case 'generate_reports':
+                    return currentRole === 'analyst';
+                case 'download_reports':
+                    return currentRole === 'analyst';
+                default:
+                    return false;
+            }
+        }
+
+                async function logout() {
             try {
                 await fetch('/logout', { method: 'POST' });
             } catch (error) {
@@ -335,19 +357,6 @@
             }
         }
         
-
-        function grantPermission(action) {
-            switch(action) {
-                case 'upload_batch':
-                    return currentRole === 'operator' || currentRole === 'analyst';
-                case 'generate_reports':
-                    return currentRole === 'analyst';
-                case 'download_reports':
-                    return currentRole === 'analyst';
-                default:
-                    return false;
-            }
-        }
         
         document.getElementById('flightAnalysisForm').addEventListener('submit', async function(e) {
             e.preventDefault();      
@@ -378,17 +387,53 @@
         function displayResults(data) {
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('newAnalysisBtn').classList.remove('hidden');
-            updateRiskGauge(data.prediction.anomaly, data.prediction.probability);
             
-            const riskLevel = calculateRiskLevel(data.prediction.anomaly, data.prediction.probability);
+            
+            updateRiskGauge(data.prediction.anomaly, data.prediction.confidence / 100);
+            
+            const riskLevel = calculateRiskLevel(data.prediction.anomaly, data.prediction.confidence / 100);
+            
             document.getElementById('riskScore').innerHTML = `
                 <h3 class="risk-${riskLevel}">${data.prediction.anomaly ? 'ANOMALY DETECTED' : 'NO ANOMALIES DETECTED'}</h3>
-                <p>Confidence: ${(data.prediction.probability * 100).toFixed(1)}%</p>
+                <p>Confidence: ${data.prediction.confidence.toFixed(1)}%</p>
                 <p>Risk Level: <span class="risk-${riskLevel}">${riskLevel.toUpperCase()}</span></p>
                 <p>Phase of Flight: ${document.querySelector('select[name="ev_nr_apt_loc"]').options[document.querySelector('select[name="ev_nr_apt_loc"]').selectedIndex].text}</p>
+                
             `;
             // https://www.youtube.com/watch?v=wj1gjOmeVcg and https://www.w3schools.com/js/js_string_templates.asp as well as deepseek
             
+            let analysisHTML = '<h4>Detailed Analysis:</h4>';
+        
+            if (data.threshold_violations && Object.keys(data.threshold_violations).length > 0) {
+                analysisHTML += '<h4>Threshold Violations:</h4><ul>';
+                for (const [key, value] of Object.entries(data.threshold_violations)) {
+                    analysisHTML += `<li>${value}</li>`;
+                }
+                analysisHTML += '</ul>';
+            } else {
+                analysisHTML += '<p>No threshold violations detected</p>';
+            }
+            
+            // Display complex patterns detected 
+            if (data.complex_patterns && Object.keys(data.complex_patterns).length > 0) {
+                analysisHTML += '<h4>Complex Patterns Detected:</h4><ul>';
+                for (const [key, value] of Object.entries(data.complex_patterns)) {
+                    analysisHTML += `<li>${value}</li>`;
+                }
+                analysisHTML += '</ul>';
+            }
+            
+            document.getElementById('anomalyDetails').innerHTML = analysisHTML;
+
+            // Display recommendations based on the patterns and naomalies found
+            if (data.recommendations && data.recommendations.length > 0) {
+                document.getElementById('recommendations').innerHTML = `
+                    <h4>Safety Recommendations:</h4>
+                    <ul>${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+                `;
+            } else {
+                document.getElementById('recommendations').innerHTML = '';
+            }
 
             if (data.prediction.anomaly) {
                 document.getElementById('reportSection').classList.remove('hidden');
@@ -402,11 +447,7 @@
                 }
                 
                 if (data.forensics_report) {
-                    document.getElementById('anomalyDetails').innerHTML = `
-                        <h4>Detailed Analysis:</h4>
-                        <pre>${JSON.stringify(data.forensics_report.anomaly_breakdown, null, 2)}</pre>
-                    `;
-                    
+                    // Preview the forensics report, combined reports 
                     document.getElementById('recommendations').innerHTML = `
                         <h4>Safety Recommendations:</h4>
                         <ul>${data.forensics_report.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
@@ -422,18 +463,10 @@
                     }
                     
                     reportsGenerated = true;
-                } else {
-                    document.getElementById('anomalyDetails').innerHTML = `
-                        <h4>Anomaly Detected</h4>
-                        <p>Click "Generate Full Reports" to get detailed analysis.</p>
-                    `;
-                    document.getElementById('recommendations').innerHTML = '';
                 }
             } else {
                 document.getElementById('reportSection').classList.add('hidden');
                 document.getElementById('normalOperation').classList.remove('hidden');
-                document.getElementById('anomalyDetails').innerHTML = '';
-                document.getElementById('recommendations').innerHTML = '';
                 document.getElementById('reportPreview').classList.add('hidden');
             }
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
@@ -564,28 +597,29 @@
                 alert(error.message);
             }
         }
+
         function calculateRiskLevel(anomaly, probability) {
             if (!anomaly) return 'normal';
-            if (probability >= 0.8) return 'high';
-            if (probability >= 0.6) return 'medium';
-            if (probability >= 0.4) return 'low';
-            return 'very low';
+            if (probability >= 0.0) return 'high';
+            // if (probability >= 0.6) return 'medium';
+            // if (probability >= 0.4) return 'low';
+            // return 'very low';
         }
 
-    // Chart visualization depending on the confidence level and risk 
-        function updateRiskGauge(anomaly, probability) {
+        // Chart visualization depending on the confidence levels and risks identified 
+        function updateRiskGauge(anomaly, confidence) {
             const ctx = document.getElementById('riskChart').getContext('2d');
             const existingChart = Chart.getChart('riskChart');
             if (existingChart) {
                 existingChart.destroy();
             }
-            const chartColor = getRiskColor(anomaly, probability);  
+            const chartColor = getRiskColor(anomaly, confidence);  
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [{
-                        data: [probability, 1 - probability],
-                        backgroundColor: [chartColor, '#e9ecef']
+                        data: [confidence, 1 - confidence],
+                        backgroundColor: [chartColor, 'white']
                     }]
                 },
                 options: {
@@ -604,24 +638,22 @@
                 }
             });
             
-            const riskLevel = calculateRiskLevel(anomaly, probability);
+            const riskLevel = calculateRiskLevel(anomaly, confidence);
             document.getElementById('riskText').innerHTML = `
                 <h3 class="risk-${riskLevel}">
-                    ${(probability * 100).toFixed(1)}% Confidence
+                    ${(confidence * 100).toFixed(1)}% Confidence
                 </h3>
                 <p>Status: ${anomaly ? 'Anomaly Detected' : 'Normal Operation'}</p>
             `;
         }
-        // https://www.chartjs.org/docs/latest/charts/doughnut.html and https://www.youtube.com/watch?v=ThhSF0bPCy0
 
-
-        function getRiskColor(anomaly, probability) {
+        function getRiskColor(anomaly, confidence) {
             if (!anomaly) {
                 return 'green';
             }
-            if (probability >= 0.8) return 'red';
-            if (probability >= 0.6) return 'orange';
-            if (probability >= 0.4) return 'yellow';
+            if (confidence >= 0.8) return 'red';
+            if (confidence >= 0.6) return 'orange';
+            if (confidence >= 0.4) return 'yellow';
             return 'greenyellow';
         }
 
@@ -630,6 +662,7 @@
             batchResultsDiv.classList.remove('hidden');
             document.getElementById('downloadBatchBtn').classList.remove('hidden');
             document.getElementById('clearBatchBtn').classList.remove('hidden');
+            
             // Summary display
             const summary = data.summary;
             document.getElementById('batchSummary').innerHTML = `
@@ -657,6 +690,10 @@
             batchResultsDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
+
+
+        
+
         function displayBatchTable(results) {
             const tableBody = document.getElementById('batchTableBody');
             tableBody.innerHTML = '';
@@ -668,6 +705,9 @@
                 } else {
                     row.className = 'normal';
                 }
+                
+                // Calculate proper confidence for batch results
+                const confidence = result.real_anomaly ? (result.probability * 100) : ((1 - result.probability) * 100);
                 const riskLevel = calculateRiskLevel(result.real_anomaly, result.probability);
                 const riskBadge = `<span class="risk-badge risk-${riskLevel}-badge">${riskLevel.toUpperCase()}</span>`;
                 
@@ -679,7 +719,7 @@
                     <td>${index + 1}</td>
                     <td>${result.real_anomaly ? 'Real Anomaly Detected' : 'Normal Operation'}</td>
                     <td>${riskBadge}</td>
-                    <td>${(result.probability * 100).toFixed(1)}%</td>
+                    <td>${confidence.toFixed(1)}%</td>
                     <td>${anomalyReasons}</td>
                 `;
                 

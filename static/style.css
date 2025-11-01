@@ -1,6 +1,6 @@
 .risk-high { color: red; font-weight: bold; }
 .risk-medium { color: yellow; font-weight: bold; }
-.risk-low { color:greenyellow; font-weight: bold; }
+/* .risk-low { color:greenyellow; font-weight: bold; } */
 .risk-normal { color: green; font-weight: bold; }
 .hidden { display: none; }
 .batch-results { margin-top: 20px; padding: 15px; background: white; border: 1px solid lightskyblue; border-radius: 5px; }
@@ -15,7 +15,7 @@
 .risk-badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; }
 .risk-high-badge { background-color: red; color: white; }
 .risk-medium-badge { background-color: yellow; color: black; }
-.risk-low-badge { background-color: greenyellow; color: white; }
+/* .risk-low-badge { background-color: greenyellow; color: white; } */
 .risk-normal-badge { background-color:green; color:black;}
 
 .button-group { display: flex; gap: 10px; margin-top: 15px; }
